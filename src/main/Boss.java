@@ -6,6 +6,12 @@ public class Boss {
     private int x, y; // Posição do chefe
     private int health = 20; // Vida do chefe
 
+    // Definindo as dimensões do Boss como constantes
+    // Isso torna mais fácil mudar em um só lugar e garantir consistência
+    public static final int BOSS_WIDTH = 70;
+    public static final int BOSS_HEIGHT = 320;
+
+
     public Boss(int x, int y) {
         this.x = x;
         this.y = y;
@@ -18,14 +24,15 @@ public class Boss {
 
     public void draw(Graphics g) {
         g.setColor(Color.RED); // Cor do chefe
-        g.fillRect(x, y, 50, 50); // Desenha o chefe como um quadrado vermelho
+        g.fillRect(x, y, BOSS_WIDTH, BOSS_HEIGHT); // Desenha o chefe como um retângulo vermelho com as dimensões da constante
         g.setColor(Color.WHITE); // Cor do texto de HP
         g.drawString("Boss HP: " + health, x, y - 10); // Exibe a vida do chefe acima dele
     }
 
     // Retorna os limites (bounding box) do chefe para detecção de colisão
     public Rectangle getBounds() {
-        return new Rectangle(x, y, 50, 50);
+        // --- CORREÇÃO AQUI: Use as mesmas constantes de largura e altura ---
+        return new Rectangle(x, y, BOSS_WIDTH, BOSS_HEIGHT);
     }
 
     // Método chamado quando o chefe é atingido por uma bala

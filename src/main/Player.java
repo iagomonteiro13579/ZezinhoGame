@@ -6,13 +6,13 @@ import java.util.ArrayList;
 
 public class Player {
     private int x, y; // Posição atual do jogador (canto superior esquerdo do hitbox)
-    private int width = 40; // Largura padrão do jogador
-    private int height = 40; // Altura padrão do jogador
+    private int width = 50; // Largura padrão do jogador
+    private int height = 100; // Altura padrão do jogador
     private int currentHeight; // Altura atual (muda ao abaixar)
     
     private int speed = 4; // Velocidade de movimento lateral
-    private int jumpSpeed = -15; // Velocidade inicial do pulo (negativo para subir)
-    private int gravity = 1; // Força da gravidade
+    private int jumpSpeed = -125; // Velocidade inicial do pulo (negativo para subir)
+    private double gravity = 4.5; // Força da gravidade
     
     private boolean isJumping = false; // Estado: está pulando ou caindo
     private boolean isOnGround = true; // Estado: está no chão

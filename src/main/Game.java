@@ -1,29 +1,44 @@
 package main;
 
 import javax.swing.JFrame;
-import javax.swing.SwingUtilities; // Importar SwingUtilities para garantir a execução na EDT
+import javax.swing.SwingUtilities;
+import java.awt.Insets; // Importar Insets
 
 public class Game {
 
     public static void main(String[] args) {
-        // Garantir que a criação e manipulação da GUI (Swing) seja feita na Event Dispatch Thread (EDT)
         SwingUtilities.invokeLater(new Runnable() {
             @Override
             public void run() {
-                JFrame window = new JFrame(); // Cria a janela principal
-                window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE); // Define o comportamento ao fechar a janela
-                window.setResizable(false); // Impede que o usuário redimensione a janela
-                window.setTitle("Cuphead Clone"); // Define o título da janela
+                JFrame window = new JFrame();
+                window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+                window.setResizable(false);
+                window.setTitle("Cuphead Clone");
 
-                GamePanel gamePanel = new GamePanel(); // Cria uma instância do seu painel de jogo
-                window.add(gamePanel); // Adiciona o painel de jogo à janela
+                GamePanel gamePanel = new GamePanel();
+                window.add(gamePanel);
 
-                window.pack(); // Ajusta o tamanho da janela para se adequar ao tamanho preferencial do GamePanel
+                // --- ALTERAÇÕES AQUI ---
+                // 1. Chame pack() ou setVisible(true) ANTES de obter os insets
+                //    para que a janela seja criada e os insets sejam calculados.
+                window.pack(); 
+                // OU window.setVisible(true); // Se preferir manter o pack() antes, o setVisible(true) pode vir aqui
+
+                // 2. Obtenha os insets (bordas da janela)
+                Insets insets = window.getInsets();
+
+                // 3. Calcule o novo tamanho da janela para que a área interna (content pane)
+                //    tenha exatamente WIDTH e HEIGHT.
+                int windowWidth = GamePanel.WIDTH + insets.left + insets.right;
+                int windowHeight = GamePanel.HEIGHT + insets.top + insets.bottom;
+
+                // 4. Defina o tamanho final da janela
+                window.setSize(windowWidth, windowHeight);
+                // -----------------------
+
                 window.setLocationRelativeTo(null); // Centraliza a janela na tela
-                window.setVisible(true); // Torna a janela visível
+                window.setVisible(true); // Garante que a janela esteja visível, se não estiver já
 
-                // Solicita o foco para o GamePanel após a janela se tornar visível
-                // Isso é crucial para que o KeyListener funcione imediatamente
                 gamePanel.requestFocusInWindow();
             }
         });

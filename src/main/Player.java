@@ -3,33 +3,43 @@ package main;
 import java.awt.*;
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
+import java.util.List;
 
 public class Player {
-    private int x, y; // Posição atual do jogador (canto superior esquerdo do hitbox)
-    private int width = 50; // Largura padrão do jogador
-    private int height = 100; // Altura padrão do jogador
-    private int currentHeight; // Altura atual (muda ao abaixar)
-    
-    private int speed = 4; // Velocidade de movimento lateral
-    private int jumpSpeed = -125; // Velocidade inicial do pulo (negativo para subir)
-    private double gravity = 4.5; // Força da gravidade
-    
-    private boolean isJumping = false; // Estado: está pulando ou caindo
-    private boolean isOnGround = true; // Estado: está no chão
-    private boolean isDucking = false; // Estado: está abaixado
-    
-    private int groundY; // A coordenada Y do chão (base dos pés do jogador)
+    private int x, y;
+    private int width = 80;
+    private int height = 160;
+    private int currentHeight;
+
+    private int speed = 6;
+
+    // 🔧 Ajuste de física do pulo
+    private int jumpSpeed = -60;   // Mais negativo = pulo mais alto
+    private double gravity = 3.5;  // Maior = queda mais rápida, menor = queda mais lenta
+    private double verticalVelocity = 0;
+
+    private boolean isJumping = false; // Esta variável pode ser substituída por !isOnGround
+    private boolean isOnGround = true;
+    private boolean isDucking = false;
+
+    private boolean fallThroughPlatform = false; // Permite queda atravessando plataforma (DOWN + JUMP)
+
+    private int groundY;
 
     private ArrayList<Bullet> bullets;
     private KeyHandler keyHandler;
-    private int leftKey, rightKey, upKey, downKey, shootKey; // Renomeadas para clareza
+    private int leftKey, rightKey, upKey, downKey, shootKey;
 
-    // Construtor atualizado para receber a posição Y do chão
+    // --- Variáveis para o sistema de tiro constante ---
+    private long lastShotTime = 0; // Tempo em nanossegundos do último tiro
+    // 0.1 segundos em nanossegundos (0.1 * 1_000_000_000)
+    private final long shotIntervalNanos = 100_000_000L; 
+    // --------------------------------------------------
+
     public Player(int x, int y, KeyHandler kh, int left, int right, int up, int down, int shoot, int groundY) {
         this.x = x;
-        // A posição y inicial deve considerar a altura do personagem para que ele fique no chão
-        this.y = groundY - height; 
-        this.currentHeight = height; // Inicia com altura padrão
+        this.y = groundY - height;
+        this.currentHeight = height;
 
         this.keyHandler = kh;
         this.leftKey = left;
@@ -38,93 +48,148 @@ public class Player {
         this.downKey = down;
         this.shootKey = shoot;
         bullets = new ArrayList<>();
-        this.groundY = groundY; // Salva a coordenada Y do chão
+        this.groundY = groundY;
     }
 
     public void update() {
-        // --- Movimento Lateral ---
-        if (keyHandler.isKeyPressed(leftKey)) {
-            x -= speed;
-        }
-        if (keyHandler.isKeyPressed(rightKey)) {
-            x += speed;
+        // Movimento lateral
+        if (keyHandler.isKeyPressed(leftKey)) x -= speed;
+        if (keyHandler.isKeyPressed(rightKey)) x += speed;
+
+        // Detecta comando de atravessar plataforma (DOWN_KEY + UP_KEY)
+        fallThroughPlatform = keyHandler.isKeyPressed(downKey) && keyHandler.isKeyPressed(upKey);
+
+        // Pulo normal
+        if (keyHandler.isKeyPressed(upKey) && isOnGround && !fallThroughPlatform) {
+            verticalVelocity = jumpSpeed;
+            isOnGround = false;
         }
 
-        // --- Pulo ---
-        // Se a tecla de pular for pressionada E o jogador estiver no chão
-        if (keyHandler.isKeyPressed(upKey) && isOnGround) {
-            isJumping = true;
-            isOnGround = false; // Não está mais no chão
-            y += jumpSpeed; // Aplica a velocidade inicial do pulo (para cima)
-        }
-
-        // Se estiver pulando ou no ar (não no chão), aplica gravidade
+        // Gravidade
         if (!isOnGround) {
-            y += gravity; // Aumenta Y (move para baixo)
+            verticalVelocity += gravity;
+            y += verticalVelocity;
         }
 
-        // Verifica se o jogador atingiu o chão
-        // y + currentHeight é a base (pés) do jogador
-        if (y + currentHeight >= groundY) {
-            y = groundY - currentHeight; // Garante que ele pare *exatamente* no chão
-            isOnGround = true;
-            isJumping = false; // Não está mais pulando
-        }
-        
-        // --- Abaixar ---
-        // Se a tecla "para baixo" for pressionada e não estiver abaixado
+        // Abaixar
+        boolean wasDucking = isDucking;
         if (keyHandler.isKeyPressed(downKey) && !isDucking) {
             isDucking = true;
-            currentHeight = height / 2; // Reduz a altura pela metade, por exemplo
-            y = groundY - currentHeight; // Ajusta a posição Y para a base continuar no chão
-        } 
-        // Se a tecla "para baixo" for liberada E estiver abaixado
-        else if (!keyHandler.isKeyPressed(downKey) && isDucking) {
+            y += (height - (height / 2)); // Move o jogador para baixo para o topo não se mover
+            currentHeight = height / 2;
+        } else if (!keyHandler.isKeyPressed(downKey) && isDucking) {
             isDucking = false;
-            currentHeight = height; // Volta para a altura padrão
-            y = groundY - currentHeight; // Ajusta a posição Y para a base continuar no chão
+            // Se levantou, ajusta a posição Y para que o chão permaneça o mesmo
+            y -= (height - currentHeight); // Corrige a posição para cima quando levanta
+            currentHeight = height;
         }
 
+        // Colisão com chão principal
+        if (y + currentHeight >= groundY) {
+            y = groundY - currentHeight;
+            isOnGround = true;
+            verticalVelocity = 0;
+        } else {
+            isOnGround = false; // Se não está no chão principal, pode estar no ar ou em plataforma
+        }
 
-        // --- Tiro ---
+        // Colisão com plataformas
+        checkPlatformCollision(GamePanel.getInstance().getPlatforms());
+
+        // --- Lógica de Tiro Constante ---
         if (keyHandler.isKeyPressed(shootKey)) {
-            shoot();
+            long currentTime = System.nanoTime();
+            if (currentTime - lastShotTime >= shotIntervalNanos) {
+                shoot();
+                lastShotTime = currentTime; // Reinicia o timer
+            }
         }
+        // ----------------------------------
 
-        // Atualiza e remove balas
-        for (Bullet b : bullets) b.update();
+        // Atualiza e remove balas fora da tela
+        for (Bullet b : bullets) {
+            b.update();
+        }
         bullets.removeIf(b -> !b.isVisible());
     }
 
     public void draw(Graphics g) {
         g.setColor(Color.BLUE);
-        // Desenha o jogador com a altura atual (padrão ou abaixado)
-        g.fillRect(x, y, width, currentHeight); 
-        
-        // Desenha as balas
-        for (Bullet b : bullets) b.draw(g);
-    }
+        g.fillRect(x, y, width, currentHeight);
 
-    // Método de tiro (pode precisar de um cooldown para não atirar continuamente)
-    public void shoot() {
-        // Exemplo simples de cooldown: só permite um novo tiro se não houver muitas balas na tela
-        if (bullets.size() < 5) {
-            bullets.add(new Bullet(x + width / 2, y + currentHeight / 2)); // Bala sai do centro do jogador
+        // Desenha as balas
+        for (Bullet b : bullets) {
+            b.draw(g);
         }
     }
 
-    // Retorna os limites de colisão do jogador com base na altura atual
+    public void shoot() {
+        bullets.add(new Bullet(x + width / 2, y + currentHeight / 2, 1)); // Direção: 1 para direita
+        // DEBUG: Verifique onde a bala está sendo criada
+        // System.out.println("Bullet created at X: " + (x + width / 2) + ", Y: " + (y + currentHeight / 2));
+    }
+
     public Rectangle getBounds() {
         return new Rectangle(x, y, width, currentHeight);
     }
 
     public void checkBullets(Boss boss) {
         bullets.removeIf(b -> {
+            // DEBUG: Verifique a posição da bala e do boss antes de verificar a colisão
+            // System.out.println("Bullet position: (" + b.getX() + ", " + b.getY() + ") - Bounds: " + b.getBounds());
+            // System.out.println("Boss position: (" + boss.getX() + ", " + boss.getY() + ") - Bounds: " + boss.getBounds());
+
             if (b.getBounds().intersects(boss.getBounds())) {
                 boss.hit();
-                return true;
+                // System.out.println("BULLET HIT BOSS!"); // DEBUG: Mensagem de acerto
+                return true; // Remove a bala se colidiu
             }
-            return false;
+            return false; // Mantém a bala
         });
+    }
+
+    public void checkPlatformCollision(List<Platform> platforms) {
+        // Guarda a posição Y antes de aplicar a gravidade/movimento neste frame
+        // Isso é crucial para detectar colisão "de cima" com plataformas.
+        int playerFeetYBeforeMove = y + currentHeight - (int)verticalVelocity; 
+        
+        Rectangle playerBounds = getBounds();
+        boolean landedOnPlatformThisFrame = false;
+
+        for (Platform platform : platforms) {
+            Rectangle platformBounds = platform.getBounds();
+
+            // Condições para pousar em uma plataforma:
+            // 1. O jogador está caindo (velocidade vertical é para baixo ou zero, mas vindo de cima)
+            // 2. A parte inferior do jogador está colidindo ou um pouco abaixo da parte superior da plataforma
+            //    (verificando a interseção)
+            // 3. A parte inferior do jogador na _próxima_ posição (se a gravidade agisse sem colisão)
+            //    estaria abaixo ou na altura da plataforma.
+            // 4. O jogador não está tentando cair através da plataforma (fallThroughPlatform)
+            // 5. O jogador se sobrepõe horizontalmente com a plataforma.
+            
+            // Lógica mais robusta para pousar na plataforma:
+            if (verticalVelocity >= 0 && playerBounds.intersects(platformBounds) &&
+                playerFeetYBeforeMove <= platformBounds.y && // Estava acima ou na linha da plataforma antes de cair
+                x + width > platformBounds.x && x < platformBounds.x + platformBounds.width &&
+                !fallThroughPlatform) {
+                
+                y = platformBounds.y - currentHeight; // Posiciona o jogador exatamente em cima da plataforma
+                verticalVelocity = 0; // Para a queda
+                isOnGround = true; // Agora está "no chão" (na plataforma)
+                landedOnPlatformThisFrame = true;
+                break; // Sai do loop, pois já achou uma plataforma para pousar
+            }
+        }
+
+        // Se não pousou em nenhuma plataforma e não está no chão principal, está no ar
+        if (!landedOnPlatformThisFrame && y + currentHeight < groundY) {
+            isOnGround = false;
+        } else if (!landedOnPlatformThisFrame && y + currentHeight >= groundY) {
+            // Se não pousou em plataforma, mas atingiu ou passou do chão principal
+            y = groundY - currentHeight;
+            isOnGround = true;
+            verticalVelocity = 0;
+        }
     }
 }

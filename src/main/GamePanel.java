@@ -7,24 +7,48 @@ import java.awt.image.BufferedImage;
 import javax.imageio.ImageIO;
 import java.io.IOException;
 import java.net.URL;
-import java.awt.AlphaComposite; // Importar para controlar a transparência
+import java.util.ArrayList;
+import java.util.List;
 
 public class GamePanel extends JPanel implements Runnable {
 
-    public static final int WIDTH = 800;
-    public static final int HEIGHT = 600;
-    public static final int GROUND_Y = 540; // Altura do chão, Y=540.
+    public static int WIDTH = 800;
+    public static int HEIGHT = 600;
+    public static int GROUND_Y;
 
     private Thread thread;
     private boolean running;
+    private boolean fullscreen = false;
+
+    public static GameState gameState = GameState.RUNNING;
 
     private Player player1, player2;
     private Boss boss;
     private KeyHandler keyHandler;
 
     private BufferedImage backgroundImage;
+    private List<Platform> platforms;
+
+    private int selectedOption = 0;
+    private String[] menuOptions = {
+        "Tela: Janela",
+        "Jogadores: 1",
+        "Som: Ligado",
+        "Voltar ao jogo"
+    };
+
+    private GraphicsDevice graphicsDevice;
+    private JFrame fullScreenFrame;
+
+    enum GameState {
+        RUNNING, MENU
+    }
+
+    private static GamePanel instance;
 
     public GamePanel() {
+        instance = this;
+
         setPreferredSize(new Dimension(WIDTH, HEIGHT));
         setDoubleBuffered(true);
 
@@ -33,53 +57,78 @@ public class GamePanel extends JPanel implements Runnable {
 
         setFocusable(true);
 
-        // --- Carregar a imagem de background ---
+        // carrega background...
         try {
             URL imageUrl = getClass().getResource("/res/background/background.png");
-            if (imageUrl == null) {
-                System.err.println("Erro: Imagem de background não encontrada! Verifique o caminho: /res/background/background.png");
-                setBackground(Color.CYAN); // Fallback para uma cor
-            } else {
-                backgroundImage = ImageIO.read(imageUrl);
-            }
+            if (imageUrl != null) backgroundImage = ImageIO.read(imageUrl);
+            else setBackground(Color.CYAN);
         } catch (IOException e) {
             e.printStackTrace();
-            System.err.println("Erro ao carregar a imagem de background: " + e.getMessage());
-            setBackground(Color.CYAN); // Fallback para uma cor
+            setBackground(Color.CYAN);
         }
-        // ---------------------------------------
-        
+
+        graphicsDevice = GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice();
+        platforms = new ArrayList<>();
+
         startGame();
     }
 
-    public void startGame() {
+    public static GamePanel getInstance() {
+        return instance;
+    }
+
+    public List<Platform> getPlatforms() {
+        return platforms;
+    }
+
+    /** —————————————— CONFIGURAÇÃO INICIAL —————————————— **/
+    public void setupGameObjects() {
+        // Define o chão 60px acima da borda inferior
+        GROUND_Y = HEIGHT - 60;
+
+        // Cria players e boss
         player1 = new Player(100, GROUND_Y, keyHandler, KeyEvent.VK_A, KeyEvent.VK_D, KeyEvent.VK_W, KeyEvent.VK_S, KeyEvent.VK_F, GROUND_Y);
         player2 = new Player(200, GROUND_Y, keyHandler, KeyEvent.VK_LEFT, KeyEvent.VK_RIGHT, KeyEvent.VK_UP, KeyEvent.VK_DOWN, KeyEvent.VK_ENTER, GROUND_Y);
-        
-        // --- ALTERAÇÃO AQUI: Posicionar o Boss em GROUND_Y ---
-        // Para posicionar o Boss no chão, precisamos saber a altura dele.
-        // Assumindo a altura padrão do Boss de 50 pixels (conforme Boss.java):
-        int bossHeight = 300; // Você pode obter isso da classe Boss se ela tiver uma constante, ou manter assim
-        boss = new Boss(700, GROUND_Y - bossHeight); // O Boss agora será posicionado em 540 (GROUND_Y) - 50 (altura) = Y=490
-        // ------------------------------------------------------
 
+        int bossHeight = Boss.BOSS_HEIGHT;
+        int bossX = WIDTH - Boss.BOSS_WIDTH - 100;
+        int bossY = GROUND_Y - bossHeight;
+        boss = new Boss(bossX, bossY);
+
+        // — Plataformas —
+        platforms.clear();
+
+        // **Plataforma 1**: 200px da esquerda, 100px acima do chão
+        int p1X = 200;
+        int p1Y =  650;
+        // **Platarforma 3**: 100px antes do boss
+        int p3X = bossX - 750;
+        int p3Y = p1Y;
+        // **Plataforma 2**: mesma X da P1, 100px acima da P1
+        int p2X = 600;
+        int p2Y =  250;
+
+        int platW = 300, platH = 20;
+        platforms.add(new Platform(p1X, p1Y, platW, platH));
+        platforms.add(new Platform(p2X, p2Y, platW, platH));
+        platforms.add(new Platform(p3X, p3Y, platW, platH));
+    }
+    /** —————————————————————————————————————————————— **/
+
+    public void startGame() {
+        setupGameObjects();
         running = true;
         thread = new Thread(this);
         thread.start();
     }
 
-    @Override // ESTE @Override É OBRIGATÓRIO AQUI!
-    public void run() {
-        double drawInterval = 1000000000.0 / 60;
-        double delta = 0;
-        long lastTime = System.nanoTime();
-        long currentTime;
-
+    @Override public void run() {
+        double drawInterval = 1e9 / 60, delta = 0;
+        long lastTime = System.nanoTime(), currentTime;
         while (running) {
             currentTime = System.nanoTime();
             delta += (currentTime - lastTime) / drawInterval;
             lastTime = currentTime;
-
             if (delta >= 1) {
                 update();
                 repaint();
@@ -88,52 +137,197 @@ public class GamePanel extends JPanel implements Runnable {
         }
     }
 
-    // Este método 'update()' NÃO deve ter @Override
     public void update() {
+        if (gameState == GameState.MENU) return;
         player1.update();
         player2.update();
         boss.update();
-
-        player1.checkBullets(boss);
-        player2.checkBullets(boss);
+        // colisão de tiros…
     }
 
-    @Override // Este está correto, pois paintComponent() é da superclasse JPanel
-    protected void paintComponent(Graphics g) {
+    @Override protected void paintComponent(Graphics g) {
         super.paintComponent(g);
-
-        // Casting para Graphics2D para usar recursos avançados como transparência
         Graphics2D g2d = (Graphics2D) g;
 
-        // --- Desenhar a imagem de background (OPACO - alpha 1.0f) ---
-        if (backgroundImage != null) {
-            // Define o composite para total opacidade para a imagem de background
-            g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1.0f));
-            g2d.drawImage(backgroundImage, 0, 0, WIDTH, HEIGHT, null);
-        } else {
-            // Se a imagem não carregou, desenha a cor de fallback (ainda opaco)
+        // background
+        if (backgroundImage != null) g2d.drawImage(backgroundImage, 0, 0, WIDTH, HEIGHT, null);
+        else {
             g2d.setColor(getBackground());
             g2d.fillRect(0, 0, WIDTH, HEIGHT);
         }
 
-        // --- Desenhar o "chão" visual (AGORA TRANSPARENTE - alpha 0.0f) ---
-        // Cria um AlphaComposite para total transparência
-        AlphaComposite alpha = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.0f);
-        g2d.setComposite(alpha); // Aplica a transparência
-
-        // As linhas abaixo AGORA SERÃO INVISÍVEIS por causa do AlphaComposite
-        g2d.setColor(Color.DARK_GRAY);
+        // chão invisível
+        AlphaComposite a = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0f);
+        g2d.setComposite(a);
         g2d.fillRect(0, GROUND_Y + 40, WIDTH, HEIGHT - (GROUND_Y + 40));
         g2d.setColor(Color.LIGHT_GRAY);
         g2d.drawLine(0, GROUND_Y + 40, WIDTH, GROUND_Y + 40);
+        g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
 
-        // --- Resetar a transparência para os objetos do jogo (JOGADOR, CHEFE, BALAS) ---
-        // É CRUCIAL resetar o AlphaComposite para 1.0f (totalmente opaco)
-        // antes de desenhar os outros elementos do jogo, caso contrário, eles também ficarão transparentes!
-        g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1.0f));
+        // desenha plataformas
+        for (Platform p : platforms) p.draw(g2d);
 
-        player1.draw(g2d);
-        player2.draw(g2d);
-        boss.draw(g2d);
+        if (gameState == GameState.RUNNING) {
+            player1.draw(g2d);
+            player2.draw(g2d);
+            boss.draw(g2d);
+        } else {
+            drawMenu(g2d);
+        }
+    }
+
+    private void drawMenu(Graphics g) {
+        g.setColor(Color.BLACK);
+        g.fillRect(0, 0, WIDTH, HEIGHT);
+        g.setFont(new Font("Arial", Font.BOLD, 30));
+        for (int i = 0; i < menuOptions.length; i++) {
+            g.setColor(i == selectedOption ? Color.YELLOW : Color.WHITE);
+            g.drawString(menuOptions[i], 100, 150 + i * 50);
+        }
+    }
+
+
+
+
+    public static void toggleMenu() {
+        if (gameState == GameState.RUNNING) {
+            gameState = GameState.MENU;
+        } else {
+            gameState = GameState.RUNNING;
+        }
+    }
+
+    public static void moveMenuSelection(int direction) {
+        GamePanel gp = getInstance();
+        gp.selectedOption = (gp.selectedOption + direction + gp.menuOptions.length) % gp.menuOptions.length;
+    }
+
+    public static void selectMenuOption() {
+        GamePanel gp = getInstance();
+        switch (gp.selectedOption) {
+            case 0:
+                gp.fullscreen = !gp.fullscreen;
+                if (gp.fullscreen) {
+                    gp.menuOptions[0] = "Tela: Fullscreen";
+                    gp.applyFullscreen();
+                } else {
+                    gp.menuOptions[0] = "Tela: Janela";
+                    gp.applyWindowed();
+                }
+                break;
+            case 1:
+                gp.menuOptions[1] = gp.menuOptions[1].contains("1") ? "Jogadores: 2" : "Jogadores: 1";
+                break;
+            case 2:
+                gp.menuOptions[2] = gp.menuOptions[2].contains("Ligado") ? "Som: Desligado" : "Som: Ligado";
+                break;
+            case 3:
+                gameState = GameState.RUNNING;
+                break;
+        }
+    }
+
+    private void applyFullscreen() {
+        JFrame window = GamePanelWindowHolder.getWindow();
+        if (window != null) {
+            System.out.println("Applying Fullscreen (Exclusive Mode)..."); 
+
+            if (!graphicsDevice.isFullScreenSupported()) {
+                System.err.println("Modo de tela cheia exclusivo não é suportado neste sistema.");
+                window.dispose();
+                window.setUndecorated(true);
+                window.setExtendedState(JFrame.MAXIMIZED_BOTH);
+                
+                Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+                WIDTH = screenSize.width;
+                HEIGHT = screenSize.height;
+
+                setPreferredSize(new Dimension(WIDTH, HEIGHT));
+                setSize(new Dimension(WIDTH, HEIGHT)); 
+                window.add(this);
+                window.pack();
+                window.setVisible(true);
+                window.revalidate();
+                window.repaint();
+                requestFocusInWindow();
+                setupGameObjects(); 
+                System.out.println("Fallback to MAXIMIZED_BOTH applied.");
+                return;
+            }
+
+            fullScreenFrame = window;
+
+            fullScreenFrame.dispose(); 
+            fullScreenFrame.setUndecorated(true);
+            fullScreenFrame.setResizable(false); 
+
+            fullScreenFrame.add(this);
+
+            graphicsDevice.setFullScreenWindow(fullScreenFrame);
+
+            WIDTH = graphicsDevice.getDisplayMode().getWidth();
+            HEIGHT = graphicsDevice.getDisplayMode().getHeight();
+            System.out.println("Exclusive Fullscreen - New WIDTH: " + WIDTH + ", New HEIGHT: " + HEIGHT); 
+
+            setPreferredSize(new Dimension(WIDTH, HEIGHT));
+            setSize(new Dimension(WIDTH, HEIGHT)); 
+
+            fullScreenFrame.revalidate(); 
+            fullScreenFrame.repaint();
+
+            requestFocusInWindow();
+            setupGameObjects(); 
+            System.out.println("Exclusive Fullscreen applied."); 
+        }
+    }
+
+    private void applyWindowed() {
+        JFrame window = GamePanelWindowHolder.getWindow();
+        if (window != null) {
+            System.out.println("Applying Windowed..."); 
+
+            if (graphicsDevice.getFullScreenWindow() != null) {
+                graphicsDevice.setFullScreenWindow(null); 
+                if (fullScreenFrame != null) {
+                    fullScreenFrame.dispose(); 
+                    fullScreenFrame.setUndecorated(false);
+                    fullScreenFrame.setResizable(false); 
+                    fullScreenFrame.setTitle("Cuphead Clone"); 
+                    fullScreenFrame.add(this);
+                    window = fullScreenFrame; 
+                } else {
+                    window.dispose();
+                    window.setUndecorated(false);
+                    window.setResizable(false);
+                    window.setTitle("Cuphead Clone");
+                    window.add(this);
+                }
+            } else {
+                window.dispose(); 
+            }
+            
+            WIDTH = 800;
+            HEIGHT = 600;
+
+            setPreferredSize(new Dimension(WIDTH, HEIGHT));
+            setSize(new Dimension(WIDTH, HEIGHT)); 
+
+            window.pack();
+
+            Insets insets = window.getInsets();
+            int windowWidth = WIDTH + insets.left + insets.right;
+            int windowHeight = HEIGHT + insets.top + insets.bottom;
+            window.setSize(windowWidth, windowHeight); 
+
+            window.setLocationRelativeTo(null);
+            window.setVisible(true);
+            
+            window.revalidate();
+            window.repaint();
+
+            requestFocusInWindow();
+            setupGameObjects(); 
+            System.out.println("Windowed applied."); 
+        }
     }
 }

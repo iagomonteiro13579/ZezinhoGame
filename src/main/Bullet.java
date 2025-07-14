@@ -1,43 +1,46 @@
 package main;
 
-import java.awt.*;
+import java.awt.Graphics;
+import java.awt.Color;
+import java.awt.Rectangle;
 
 public class Bullet {
-    private int x, y; // Posição da bala
-    private int speed = 10; // Velocidade da bala
-    private boolean visible = true; // Se a bala ainda está visível/ativa no jogo
+    private int x, y;
+    private int width = 20;  // Tamanho do projétil
+    private int height = 10;
+    private int speed = 15;  // Velocidade do projétil
+    private int direction;   // 1 para direita, -1 para esquerda
+    private boolean visible = true; // Se a bala ainda está na tela
 
-    public Bullet(int x, int y) {
+    public Bullet(int x, int y, int direction) {
         this.x = x;
         this.y = y;
+        this.direction = direction;
     }
 
     public void update() {
-        x += speed; // Move a bala para a direita
-        // Se a bala sair da tela, ela não é mais visível
-        if (x > GamePanel.WIDTH) {
+        x += speed * direction; // Move a bala na direção
+        // Remove a bala se sair da tela (ajuste os limites conforme GamePanel.WIDTH)
+        if (x < -width || x > GamePanel.WIDTH) {
             visible = false;
         }
     }
 
     public void draw(Graphics g) {
-        if (visible) { // Desenha a bala apenas se ela estiver visível
-            g.setColor(Color.YELLOW); // Cor da bala
-            g.fillRect(x, y, 10, 5); // Tamanho da bala (retângulo)
+        if (visible) {
+            g.setColor(Color.ORANGE); // Cor do projétil
+            g.fillOval(x, y, width, height); // Desenha um círculo/oval para o projétil
         }
     }
 
-    // Retorna os limites (bounding box) da bala para detecção de colisão
     public Rectangle getBounds() {
-        return new Rectangle(x, y, 10, 5);
+        return new Rectangle(x, y, width, height);
     }
 
-    // Retorna se a bala está visível
     public boolean isVisible() {
         return visible;
     }
 
-    // Define a visibilidade da bala (usado quando ela colide, por exemplo)
     public void setVisible(boolean visible) {
         this.visible = visible;
     }

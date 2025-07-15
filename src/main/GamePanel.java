@@ -57,7 +57,6 @@ public class GamePanel extends JPanel implements Runnable {
 
         setFocusable(true);
 
-        // carrega background...
         try {
             URL imageUrl = getClass().getResource("/res/background/background.png");
             if (imageUrl != null) backgroundImage = ImageIO.read(imageUrl);
@@ -81,12 +80,9 @@ public class GamePanel extends JPanel implements Runnable {
         return platforms;
     }
 
-    /** —————————————— CONFIGURAÇÃO INICIAL —————————————— **/
     public void setupGameObjects() {
-        // Define o chão 60px acima da borda inferior
         GROUND_Y = HEIGHT - 60;
 
-        // Cria players e boss
         player1 = new Player(100, GROUND_Y, keyHandler, KeyEvent.VK_A, KeyEvent.VK_D, KeyEvent.VK_W, KeyEvent.VK_S, KeyEvent.VK_F, GROUND_Y);
         player2 = new Player(200, GROUND_Y, keyHandler, KeyEvent.VK_LEFT, KeyEvent.VK_RIGHT, KeyEvent.VK_UP, KeyEvent.VK_DOWN, KeyEvent.VK_ENTER, GROUND_Y);
 
@@ -95,25 +91,21 @@ public class GamePanel extends JPanel implements Runnable {
         int bossY = GROUND_Y - bossHeight;
         boss = new Boss(bossX, bossY);
 
-        // — Plataformas —
         platforms.clear();
 
-        // **Plataforma 1**: 200px da esquerda, 100px acima do chão
+        // POSIÇÕES ORIGINAIS DAS PLATAFORMAS
         int p1X = 200;
-        int p1Y =  650;
-        // **Platarforma 3**: 100px antes do boss
+        int p1Y = 650;
         int p3X = bossX - 750;
         int p3Y = p1Y;
-        // **Plataforma 2**: mesma X da P1, 100px acima da P1
         int p2X = 600;
-        int p2Y =  250;
+        int p2Y = 250;
 
         int platW = 300, platH = 20;
         platforms.add(new Platform(p1X, p1Y, platW, platH));
         platforms.add(new Platform(p2X, p2Y, platW, platH));
         platforms.add(new Platform(p3X, p3Y, platW, platH));
     }
-    /** —————————————————————————————————————————————— **/
 
     public void startGame() {
         setupGameObjects();
@@ -142,21 +134,21 @@ public class GamePanel extends JPanel implements Runnable {
         player1.update();
         player2.update();
         boss.update();
-        // colisão de tiros…
+        player1.checkBullets(boss);
+        player2.checkBullets(boss);
+
     }
 
     @Override protected void paintComponent(Graphics g) {
         super.paintComponent(g);
         Graphics2D g2d = (Graphics2D) g;
 
-        // background
         if (backgroundImage != null) g2d.drawImage(backgroundImage, 0, 0, WIDTH, HEIGHT, null);
         else {
             g2d.setColor(getBackground());
             g2d.fillRect(0, 0, WIDTH, HEIGHT);
         }
 
-        // chão invisível
         AlphaComposite a = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0f);
         g2d.setComposite(a);
         g2d.fillRect(0, GROUND_Y + 40, WIDTH, HEIGHT - (GROUND_Y + 40));
@@ -164,7 +156,6 @@ public class GamePanel extends JPanel implements Runnable {
         g2d.drawLine(0, GROUND_Y + 40, WIDTH, GROUND_Y + 40);
         g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
 
-        // desenha plataformas
         for (Platform p : platforms) p.draw(g2d);
 
         if (gameState == GameState.RUNNING) {
@@ -185,9 +176,6 @@ public class GamePanel extends JPanel implements Runnable {
             g.drawString(menuOptions[i], 100, 150 + i * 50);
         }
     }
-
-
-
 
     public static void toggleMenu() {
         if (gameState == GameState.RUNNING) {
@@ -230,36 +218,32 @@ public class GamePanel extends JPanel implements Runnable {
     private void applyFullscreen() {
         JFrame window = GamePanelWindowHolder.getWindow();
         if (window != null) {
-            System.out.println("Applying Fullscreen (Exclusive Mode)..."); 
-
             if (!graphicsDevice.isFullScreenSupported()) {
-                System.err.println("Modo de tela cheia exclusivo não é suportado neste sistema.");
                 window.dispose();
                 window.setUndecorated(true);
                 window.setExtendedState(JFrame.MAXIMIZED_BOTH);
-                
+
                 Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
                 WIDTH = screenSize.width;
                 HEIGHT = screenSize.height;
 
                 setPreferredSize(new Dimension(WIDTH, HEIGHT));
-                setSize(new Dimension(WIDTH, HEIGHT)); 
+                setSize(new Dimension(WIDTH, HEIGHT));
                 window.add(this);
                 window.pack();
                 window.setVisible(true);
                 window.revalidate();
                 window.repaint();
                 requestFocusInWindow();
-                setupGameObjects(); 
-                System.out.println("Fallback to MAXIMIZED_BOTH applied.");
+                setupGameObjects();
                 return;
             }
 
             fullScreenFrame = window;
 
-            fullScreenFrame.dispose(); 
+            fullScreenFrame.dispose();
             fullScreenFrame.setUndecorated(true);
-            fullScreenFrame.setResizable(false); 
+            fullScreenFrame.setResizable(false);
 
             fullScreenFrame.add(this);
 
@@ -267,34 +251,30 @@ public class GamePanel extends JPanel implements Runnable {
 
             WIDTH = graphicsDevice.getDisplayMode().getWidth();
             HEIGHT = graphicsDevice.getDisplayMode().getHeight();
-            System.out.println("Exclusive Fullscreen - New WIDTH: " + WIDTH + ", New HEIGHT: " + HEIGHT); 
 
             setPreferredSize(new Dimension(WIDTH, HEIGHT));
-            setSize(new Dimension(WIDTH, HEIGHT)); 
+            setSize(new Dimension(WIDTH, HEIGHT));
 
-            fullScreenFrame.revalidate(); 
+            fullScreenFrame.revalidate();
             fullScreenFrame.repaint();
 
             requestFocusInWindow();
-            setupGameObjects(); 
-            System.out.println("Exclusive Fullscreen applied."); 
+            setupGameObjects();
         }
     }
 
     private void applyWindowed() {
         JFrame window = GamePanelWindowHolder.getWindow();
         if (window != null) {
-            System.out.println("Applying Windowed..."); 
-
             if (graphicsDevice.getFullScreenWindow() != null) {
-                graphicsDevice.setFullScreenWindow(null); 
+                graphicsDevice.setFullScreenWindow(null);
                 if (fullScreenFrame != null) {
-                    fullScreenFrame.dispose(); 
+                    fullScreenFrame.dispose();
                     fullScreenFrame.setUndecorated(false);
-                    fullScreenFrame.setResizable(false); 
-                    fullScreenFrame.setTitle("Cuphead Clone"); 
+                    fullScreenFrame.setResizable(false);
+                    fullScreenFrame.setTitle("Cuphead Clone");
                     fullScreenFrame.add(this);
-                    window = fullScreenFrame; 
+                    window = fullScreenFrame;
                 } else {
                     window.dispose();
                     window.setUndecorated(false);
@@ -303,31 +283,37 @@ public class GamePanel extends JPanel implements Runnable {
                     window.add(this);
                 }
             } else {
-                window.dispose(); 
+                window.dispose();
             }
-            
+
             WIDTH = 800;
             HEIGHT = 600;
 
             setPreferredSize(new Dimension(WIDTH, HEIGHT));
-            setSize(new Dimension(WIDTH, HEIGHT)); 
+            setSize(new Dimension(WIDTH, HEIGHT));
 
             window.pack();
 
             Insets insets = window.getInsets();
             int windowWidth = WIDTH + insets.left + insets.right;
             int windowHeight = HEIGHT + insets.top + insets.bottom;
-            window.setSize(windowWidth, windowHeight); 
+            window.setSize(windowWidth, windowHeight);
 
             window.setLocationRelativeTo(null);
             window.setVisible(true);
-            
+
             window.revalidate();
             window.repaint();
 
             requestFocusInWindow();
-            setupGameObjects(); 
-            System.out.println("Windowed applied."); 
+            setupGameObjects();
         }
+    }
+    public Player getPlayer1() {
+        return player1;
+    }
+
+    public Player getPlayer2() {
+        return player2;
     }
 }

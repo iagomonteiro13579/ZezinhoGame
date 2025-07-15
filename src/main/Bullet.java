@@ -1,26 +1,30 @@
 package main;
 
-import java.awt.Graphics;
 import java.awt.Color;
+import java.awt.Graphics;
 import java.awt.Rectangle;
 
 public class Bullet {
     private int x, y;
-    private int width = 20;  // Tamanho do projétil
-    private int height = 10;
-    private int speed = 15;  // Velocidade do projétil
-    private int direction;   // 1 para direita, -1 para esquerda
-    private boolean visible = true; // Se a bala ainda está na tela
+    private int width;
+    private int height;
+    private int speed;
+    private int direction;
+    private int damage;
+    private boolean visible = true;
 
-    public Bullet(int x, int y, int direction) {
+    public Bullet(int x, int y, int width, int height, int speed, int direction, int damage) {
         this.x = x;
         this.y = y;
+        this.width = width;
+        this.height = height;
+        this.speed = speed;
         this.direction = direction;
+        this.damage = damage;
     }
 
     public void update() {
-        x += speed * direction; // Move a bala na direção
-        // Remove a bala se sair da tela (ajuste os limites conforme GamePanel.WIDTH)
+        x += speed * direction;
         if (x < -width || x > GamePanel.WIDTH) {
             visible = false;
         }
@@ -28,8 +32,16 @@ public class Bullet {
 
     public void draw(Graphics g) {
         if (visible) {
-            g.setColor(Color.ORANGE); // Cor do projétil
-            g.fillOval(x, y, width, height); // Desenha um círculo/oval para o projétil
+            // Projétil do Boss (vermelho) vs. Bala do Player (laranja)
+            // Você pode adicionar uma lógica aqui para mudar a cor
+            // baseada em quem disparou, se quiser.
+            // Por enquanto, o boss pode usar uma cor diferente para seus projéteis.
+            if (this.width == 300) { // Uma forma simples de diferenciar os projéteis do boss
+                g.setColor(Color.BLUE);
+            } else { // Balas do player
+                g.setColor(Color.BLUE);
+            }
+            g.fillRect(x, y, width, height);
         }
     }
 
@@ -43,5 +55,12 @@ public class Bullet {
 
     public void setVisible(boolean visible) {
         this.visible = visible;
+    }
+
+    public int getX() { return x; }
+    public int getY() { return y; }
+
+    public int getDamage() {
+        return damage;
     }
 }

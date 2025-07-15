@@ -27,19 +27,23 @@ public class Boss {
 
     private int projectilesToFireOnLand = 0;
     private long lastLandAttackTime = 0;
-    // O intervalo para o ataque de pouso original, ajustado para ser mais rápido na sequência
-    private final long LAND_ATTACK_INTERVAL_NANOS = 150_000_000L; 
+    private final long LAND_ATTACK_INTERVAL_NANOS = 150_000_000L;
 
-    // Variáveis para o novo ataque especial (mantidas como no código anterior)
     private long lastSpecialAttackTime = 0;
-    private final long SPECIAL_ATTACK_COOLDOWN_NANOS = 100_000_000L; // Cooldown de 2 segundos
+    private final long SPECIAL_ATTACK_COOLDOWN_NANOS = 2_000_000_000L; 
 
-    // Novas variáveis para a Chuva de Projéteis Acelerada
     private boolean isPerformingBulletHell = false;
     private int bulletHellProjectilesFired = 0;
-    private final int MAX_BULLET_HELL_PROJECTILES = 7; // Total de projéteis na chuva
-    private final long BULLET_HELL_FIRE_INTERVAL_NANOS = 70_000_000L; // Intervalo entre cada projétil da chuva (70ms)
+    private final int MAX_BULLET_HELL_PROJECTILES = 7; 
+    private final long BULLET_HELL_FIRE_INTERVAL_NANOS = 70_000_000L; 
 
+    // NOVAS VARIÁVEIS PARA O ATAQUE DE INVESTIDA
+    private boolean isCharging = false;
+    private int chargeDirection = 0; // -1 para esquerda, 1 para direita
+    private int chargeSpeed = 15; // Velocidade da investida
+    private long lastChargeAttackTime = 0;
+    private final long CHARGE_ATTACK_COOLDOWN_NANOS = 4_000_000_000L; // Cooldown de 4 segundos para a investida
+    private final int CHARGE_BUFFER_X = 50; // Margem para parar antes da parede
 
     private Random random = new Random();
 
@@ -50,6 +54,17 @@ public class Boss {
     }
 
     public void update() {
+        // Se o Boss estiver em uma investida, ele não faz outros movimentos ou ataques
+        if (isCharging) {
+            handleChargeAttack();
+            // Apenas atualiza projéteis já existentes (se houver algum)
+            for (Bullet bullet : bossProjectiles) {
+                bullet.update();
+            }
+            bossProjectiles.removeIf(bullet -> !bullet.isVisible());
+            return; // Sai do método update para não processar outras lógicas de movimento/ataque
+        }
+
         if (x < 0) x = 0;
         if (x + BOSS_WIDTH > GamePanel.WIDTH) x = GamePanel.WIDTH - BOSS_WIDTH;
 
@@ -70,10 +85,10 @@ public class Boss {
 
             if (isJumping) {
                 // Ao invés de sempre 3, agora pode iniciar o bullet hell
-                if (random.nextInt(2000) < 5) { // Sua condição de 5 em 2000
+                if (random.nextInt(100) < 20) { // Chance de 20% de bullet hell ao pousar (para testes)
                     isPerformingBulletHell = true;
                     bulletHellProjectilesFired = 0;
-                    lastLandAttackTime = System.nanoTime(); // Reutiliza este tempo para o bullet hell
+                    lastLandAttackTime = System.nanoTime(); 
                 } else {
                     projectilesToFireOnLand = 3; // Mantém o ataque de 3 balas normal
                     lastLandAttackTime = System.nanoTime();
@@ -102,18 +117,27 @@ public class Boss {
         if (isPerformingBulletHell && bulletHellProjectilesFired < MAX_BULLET_HELL_PROJECTILES && System.nanoTime() - lastLandAttackTime > BULLET_HELL_FIRE_INTERVAL_NANOS) {
             fireBulletHellProjectile(bulletHellProjectilesFired);
             bulletHellProjectilesFired++;
-            lastLandAttackTime = System.nanoTime(); // Atualiza para o próximo projétil da sequência
+            lastLandAttackTime = System.nanoTime(); 
             
             if (bulletHellProjectilesFired >= MAX_BULLET_HELL_PROJECTILES) {
-                isPerformingBulletHell = false; // Termina o ataque de chuva de projéteis
+                isPerformingBulletHell = false; 
             }
         }
 
-
-        // Lógica para o ataque especial (mantida)
-        if (isOnGround && System.nanoTime() - lastSpecialAttackTime > SPECIAL_ATTACK_COOLDOWN_NANOS && random.nextInt(1000) < 10) {
+        // Lógica para o ataque especial (chance aumentada para testes)
+        if (isOnGround && System.nanoTime() - lastSpecialAttackTime > SPECIAL_ATTACK_COOLDOWN_NANOS && random.nextInt(100) < 10) { 
             fireSpecialAttack();
-            lastSpecialAttackTime = System.nanoTime(); // Reseta o cooldown
+            lastSpecialAttackTime = System.nanoTime(); 
+        }
+
+        // NOVA LÓGICA: Ativação do ataque de Investida com Perseguição
+        // Condições: No chão, cooldown passou e chance aleatória
+        if (isOnGround && !isJumping && !isPerformingBulletHell && 
+            System.nanoTime() - lastChargeAttackTime > CHARGE_ATTACK_COOLDOWN_NANOS && 
+            random.nextInt(2000) < 10) { // Sua condição de 10 em 2000
+            
+            startChargeAttack();
+            lastChargeAttackTime = System.nanoTime(); // Reseta o cooldown
         }
 
         for (Bullet bullet : bossProjectiles) {
@@ -144,29 +168,26 @@ public class Boss {
     private void fireSingleJumpProjectile() {
         Player targetPlayer = getTargetPlayer();
         if (targetPlayer != null) {
-            fireHomingProjectile(targetPlayer, 8, 10, 0); // Sem variação extra de ângulo para este
+            fireHomingProjectile(targetPlayer, 8, 10, 0); 
         }
     }
 
-    // Método original para 3 projéteis de pouso (se não for bullet hell)
     private void fireLandProjectile() {
         Player targetPlayer = getTargetPlayer();
         if (targetPlayer != null) {
-            fireHomingProjectile(targetPlayer, 10, 15, 0); // Sem variação extra de ângulo para este
+            fireHomingProjectile(targetPlayer, 10, 15, 0); 
         }
     }
 
-    // Novo método para o ataque especial (mantido)
     private void fireSpecialAttack() {
         Player targetPlayer = getTargetPlayer();
         if (targetPlayer != null) {
-            fireHomingProjectile(targetPlayer, 9, 12, 5); // Bala central com pequena variação
-            fireHomingProjectile(targetPlayer, 9, 12, -5); // Bala desviada para um lado
-            fireHomingProjectile(targetPlayer, 9, 12, 5); // Bala desviada para o outro lado
+            fireHomingProjectile(targetPlayer, 9, 12, 5); 
+            fireHomingProjectile(targetPlayer, 9, 12, -5); 
+            fireHomingProjectile(targetPlayer, 9, 12, 5); 
         }
     }
 
-    // NOVO: Método para disparar um projétil da chuva de balas
     private void fireBulletHellProjectile(int projectileIndex) {
         Player targetPlayer = getTargetPlayer();
         if (targetPlayer == null) return;
@@ -174,24 +195,21 @@ public class Boss {
         int startX = this.x + BOSS_WIDTH / 2;
         int startY = this.y + BOSS_HEIGHT / 2;
 
-        // Calcular o ângulo base para o jogador
         double baseAngle = Math.atan2(targetPlayer.getY() + targetPlayer.getCurrentHeight() / 2 - startY, 
                                       targetPlayer.getX() + 40 - startX);
 
-        // Definir a variação do ângulo e velocidade para criar o efeito de leque e aceleração
         double angleOffset = 0;
         int speed = 0;
         int damage = 0;
 
-        // Distribuir os projéteis em um leque e variar a velocidade
         switch (projectileIndex) {
-            case 0: // Projétil inicial, mais lento e mais centrado
-                angleOffset = Math.toRadians(-15); // Exemplo de desvio
+            case 0: 
+                angleOffset = Math.toRadians(-15); 
                 speed = 7;
                 damage = 8;
                 break;
             case 1:
-                angleOffset = Math.toRadians(0); // Centrado
+                angleOffset = Math.toRadians(0); 
                 speed = 9;
                 damage = 9;
                 break;
@@ -200,7 +218,7 @@ public class Boss {
                 speed = 7;
                 damage = 8;
                 break;
-            case 3: // Mais rápido
+            case 3: 
                 angleOffset = Math.toRadians(-25);
                 speed = 11;
                 damage = 10;
@@ -210,22 +228,20 @@ public class Boss {
                 speed = 11;
                 damage = 10;
                 break;
-            case 5: // Mais rápido ainda
+            case 5: 
                 angleOffset = Math.toRadians(-35);
                 speed = 13;
                 damage = 12;
                 break;
-            case 6: // Final e mais rápido
+            case 6: 
                 angleOffset = Math.toRadians(35);
                 speed = 13;
                 damage = 12;
                 break;
         }
         
-        // Pequena chance de ser teleguiado (50%)
         if (random.nextBoolean()) {
-             // Redireciona um pouco mais para o jogador, adicionando um fator teleguiado
-            double homingFactor = 0.5; // Ajuste este valor para mais ou menos "homing"
+            double homingFactor = 0.5; 
             double angleToPlayer = Math.atan2(targetPlayer.getY() + targetPlayer.getCurrentHeight() / 2 - startY, 
                                              targetPlayer.getX() + 40 - startX);
             baseAngle = baseAngle * (1 - homingFactor) + angleToPlayer * homingFactor;
@@ -245,7 +261,7 @@ public class Boss {
         Player p2 = GamePanel.getInstance().getPlayer2();
 
         if (p1 != null && p2 != null) {
-            return p1; // Preferência por p1
+            return p1; 
         } else if (p1 != null) {
             return p1;
         } else if (p2 != null) {
@@ -254,7 +270,6 @@ public class Boss {
         return null;
     }
 
-    // Método fireHomingProjectile atualizado para aceitar variação de ângulo
     private void fireHomingProjectile(Player targetPlayer, int speed, int damage, double angleVariationDegrees) {
         int targetX = targetPlayer.getX() + 40;
         int targetY = targetPlayer.getY() + targetPlayer.getCurrentHeight() / 2;
@@ -264,7 +279,6 @@ public class Boss {
 
         double angle = Math.atan2(targetY - startY, targetX - startX);
 
-        // Aplica a variação de ângulo
         angle += Math.toRadians(angleVariationDegrees);
 
         int dx = (int) (Math.cos(angle) * speed);
@@ -298,5 +312,35 @@ public class Boss {
             }
             return false;
         });
+    }
+
+    // NOVOS MÉTODOS PARA O ATAQUE DE INVESTIDA
+    private void startChargeAttack() {
+        isCharging = true;
+        // Decide a direção inicial da investida com base na posição do jogador
+        Player targetPlayer = getTargetPlayer();
+        if (targetPlayer != null) {
+            if (targetPlayer.getX() < this.x) {
+                chargeDirection = -1; // Jogador está à esquerda, vai para a esquerda
+            } else {
+                chargeDirection = 1; // Jogador está à direita, vai para a direita
+            }
+        } else {
+            // Se não houver jogador, escolhe uma direção aleatória
+            chargeDirection = random.nextBoolean() ? 1 : -1;
+        }
+    }
+
+    private void handleChargeAttack() {
+        x += chargeDirection * chargeSpeed;
+
+        // Checa se atingiu o limite esquerdo ou direito da tela
+        if (chargeDirection == -1 && x <= 0 + CHARGE_BUFFER_X) {
+            chargeDirection = 1; // Mude para direita
+        } else if (chargeDirection == 1 && x + BOSS_WIDTH >= GamePanel.WIDTH - CHARGE_BUFFER_X) {
+            // Atingiu o limite direito, termina a investida
+            isCharging = false;
+            chargeDirection = 0; // Reseta a direção
+        }
     }
 }

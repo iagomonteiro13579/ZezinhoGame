@@ -1,8 +1,6 @@
 package main;
 
-import java.awt.Color;
-import java.awt.Graphics;
-import java.awt.Rectangle;
+import java.awt.*;
 
 public class Bullet {
     private int x, y;
@@ -13,6 +11,10 @@ public class Bullet {
     private int damage;
     private boolean visible = true;
 
+    private int dx = 0;
+    private int dy = 0;
+
+    // Construtor usado pelo Player (direction: -1 ou 1)
     public Bullet(int x, int y, int width, int height, int speed, int direction, int damage) {
         this.x = x;
         this.y = y;
@@ -23,24 +25,35 @@ public class Bullet {
         this.damage = damage;
     }
 
+    // ✅ Novo construtor usado pelo Boss (usando Point para evitar conflito de assinaturas)
+    public Bullet(int x, int y, int width, int height, Point velocity, int damage) {
+        this.x = x;
+        this.y = y;
+        this.width = width;
+        this.height = height;
+        this.dx = velocity.x;
+        this.dy = velocity.y;
+        this.damage = damage;
+        this.direction = 0; // Ignora direction
+        this.speed = 0;     // Ignora speed
+    }
+
     public void update() {
-        x += speed * direction;
-        if (x < -width || x > GamePanel.WIDTH) {
+        if (direction != 0) {
+            x += speed * direction;
+        } else {
+            x += dx;
+            y += dy;
+        }
+
+        if (x < -width || x > GamePanel.WIDTH || y < -height || y > GamePanel.HEIGHT) {
             visible = false;
         }
     }
 
     public void draw(Graphics g) {
         if (visible) {
-            // Projétil do Boss (vermelho) vs. Bala do Player (laranja)
-            // Você pode adicionar uma lógica aqui para mudar a cor
-            // baseada em quem disparou, se quiser.
-            // Por enquanto, o boss pode usar uma cor diferente para seus projéteis.
-            if (this.width == 300) { // Uma forma simples de diferenciar os projéteis do boss
-                g.setColor(Color.BLUE);
-            } else { // Balas do player
-                g.setColor(Color.BLUE);
-            }
+            g.setColor(Color.BLUE);
             g.fillRect(x, y, width, height);
         }
     }

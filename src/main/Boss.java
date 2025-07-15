@@ -1,8 +1,8 @@
 package main;
 
 import java.awt.*;
-import java.util.ArrayList; // Necessário para a lista de projéteis
-import java.util.List;      // Necessário para a lista de projéteis
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 
 public class Boss {
@@ -14,79 +14,108 @@ public class Boss {
 
     private double verticalVelocity = 0;
     private double gravity = 3.5;
-    private int jumpSpeed = -30; // Mantido em -30 para pulos visíveis
+    private int jumpSpeed = -30;
 
     private boolean isJumping = false;
     private boolean isOnGround = true;
 
-    private List<Bullet> bossProjectiles; // Reintroduzido: Lista para os projéteis do Boss
+    private List<Bullet> bossProjectiles;
 
-    // Variáveis para controlar os disparos
-    private boolean hasJumpedAndNotFiredYet = false; // Flag para o tiro no meio do pulo
-    private long lastJumpAttackTime = 0; // Para controlar o tempo de disparo no pulo
-    private final long JUMP_ATTACK_DELAY_NANOS = 500_000_000L; // 0.5 segundos após o pulo para o disparo
+    private boolean hasJumpedAndNotFiredYet = false;
+    private long lastJumpAttackTime = 0;
+    private final long JUMP_ATTACK_DELAY_NANOS = 300_000_000L;
 
-    private int projectilesToFireOnLand = 0; // Contador para os 3 projéteis ao aterrissar
+    private int projectilesToFireOnLand = 0;
     private long lastLandAttackTime = 0;
-    private final long LAND_ATTACK_INTERVAL_NANOS = 300_000_000L; // 0.3 segundos entre cada um dos 3 tiros
+    // O intervalo para o ataque de pouso original, ajustado para ser mais rápido na sequência
+    private final long LAND_ATTACK_INTERVAL_NANOS = 150_000_000L; 
+
+    // Variáveis para o novo ataque especial (mantidas como no código anterior)
+    private long lastSpecialAttackTime = 0;
+    private final long SPECIAL_ATTACK_COOLDOWN_NANOS = 100_000_000L; // Cooldown de 2 segundos
+
+    // Novas variáveis para a Chuva de Projéteis Acelerada
+    private boolean isPerformingBulletHell = false;
+    private int bulletHellProjectilesFired = 0;
+    private final int MAX_BULLET_HELL_PROJECTILES = 7; // Total de projéteis na chuva
+    private final long BULLET_HELL_FIRE_INTERVAL_NANOS = 70_000_000L; // Intervalo entre cada projétil da chuva (70ms)
+
 
     private Random random = new Random();
 
     public Boss(int x, int y) {
         this.x = x;
         this.y = y;
-        this.bossProjectiles = new ArrayList<>(); // Inicializa a lista
+        this.bossProjectiles = new ArrayList<>();
     }
 
     public void update() {
         if (x < 0) x = 0;
         if (x + BOSS_WIDTH > GamePanel.WIDTH) x = GamePanel.WIDTH - BOSS_WIDTH;
 
-        // Lógica de Gravidade e Pulo
         if (!isOnGround) {
             verticalVelocity += gravity;
             y += verticalVelocity;
 
-            // Disparo de UM PROJÉTIL durante o pulo (após uma pequena delay)
             if (isJumping && !hasJumpedAndNotFiredYet && System.nanoTime() - lastJumpAttackTime > JUMP_ATTACK_DELAY_NANOS) {
                 fireSingleJumpProjectile();
-                hasJumpedAndNotFiredYet = true; // Garante que atire apenas uma vez por pulo
+                hasJumpedAndNotFiredYet = true;
             }
-
         }
 
-        // Lógica de Aterrissagem
         if (y + BOSS_HEIGHT >= GamePanel.GROUND_Y) {
             y = GamePanel.GROUND_Y - BOSS_HEIGHT;
             isOnGround = true;
             verticalVelocity = 0;
 
-            // Ao tocar o chão, se estava pulando, prepara para os 3 tiros
-            if (isJumping) { // Significa que ele acabou de aterrissar de um pulo
-                projectilesToFireOnLand = 3; // Prepara para disparar 3 projéteis
-                lastLandAttackTime = System.nanoTime(); // Inicia o timer para os tiros no chão
+            if (isJumping) {
+                // Ao invés de sempre 3, agora pode iniciar o bullet hell
+                if (random.nextInt(2000) < 5) { // Sua condição de 5 em 2000
+                    isPerformingBulletHell = true;
+                    bulletHellProjectilesFired = 0;
+                    lastLandAttackTime = System.nanoTime(); // Reutiliza este tempo para o bullet hell
+                } else {
+                    projectilesToFireOnLand = 3; // Mantém o ataque de 3 balas normal
+                    lastLandAttackTime = System.nanoTime();
+                }
             }
-            isJumping = false; // Reseta a flag de pulo
-            hasJumpedAndNotFiredYet = false; // Reseta para o próximo pulo
+            isJumping = false;
+            hasJumpedAndNotFiredYet = false;
         } else {
             isOnGround = false;
         }
 
-        // Inicia um pulo aleatoriamente quando no chão
-        if (isOnGround && random.nextInt(1000) < 5) {
+        // Impede salto duplo
+        if (!isJumping && isOnGround && random.nextInt(1000) < 5) {
             startJumpAttack();
-            lastJumpAttackTime = System.nanoTime(); // Grava o tempo para o tiro do pulo
+            lastJumpAttackTime = System.nanoTime();
         }
 
-        // Lógica para disparar os 3 projéteis ao aterrissar
-        if (projectilesToFireOnLand > 0 && System.nanoTime() - lastLandAttackTime > LAND_ATTACK_INTERVAL_NANOS) {
+        // Lógica para o ataque de pouso normal (3 projéteis)
+        if (!isPerformingBulletHell && projectilesToFireOnLand > 0 && System.nanoTime() - lastLandAttackTime > LAND_ATTACK_INTERVAL_NANOS) {
             fireLandProjectile();
             projectilesToFireOnLand--;
-            lastLandAttackTime = System.nanoTime(); // Reinicia o timer para o próximo tiro
+            lastLandAttackTime = System.nanoTime();
+        }
+
+        // Lógica para a Chuva de Projéteis Acelerada (Bullet Hell)
+        if (isPerformingBulletHell && bulletHellProjectilesFired < MAX_BULLET_HELL_PROJECTILES && System.nanoTime() - lastLandAttackTime > BULLET_HELL_FIRE_INTERVAL_NANOS) {
+            fireBulletHellProjectile(bulletHellProjectilesFired);
+            bulletHellProjectilesFired++;
+            lastLandAttackTime = System.nanoTime(); // Atualiza para o próximo projétil da sequência
+            
+            if (bulletHellProjectilesFired >= MAX_BULLET_HELL_PROJECTILES) {
+                isPerformingBulletHell = false; // Termina o ataque de chuva de projéteis
+            }
         }
 
 
-        // Atualiza e remove projéteis do Boss
+        // Lógica para o ataque especial (mantida)
+        if (isOnGround && System.nanoTime() - lastSpecialAttackTime > SPECIAL_ATTACK_COOLDOWN_NANOS && random.nextInt(1000) < 10) {
+            fireSpecialAttack();
+            lastSpecialAttackTime = System.nanoTime(); // Reseta o cooldown
+        }
+
         for (Bullet bullet : bossProjectiles) {
             bullet.update();
         }
@@ -99,7 +128,6 @@ public class Boss {
         g.setColor(Color.WHITE);
         g.drawString("Boss HP: " + health, x, y - 10);
 
-        // Desenha os projéteis do Boss
         for (Bullet bullet : bossProjectiles) {
             bullet.draw(g);
         }
@@ -109,61 +137,141 @@ public class Boss {
         if (isOnGround) {
             verticalVelocity = jumpSpeed;
             isOnGround = false;
-            isJumping = true; // Define que o Boss está pulando
-            // hasJumpedAndNotFiredYet é setado para false ao aterrisar.
-            // lastJumpAttackTime é setado no update principal, antes de chamar aqui.
+            isJumping = true;
         }
     }
 
-    // NOVO MÉTODO: Dispara um projétil simples durante o pulo
     private void fireSingleJumpProjectile() {
-        // Altura do projétil: No meio do boss, ou em 120px do topo do boss, o que for menor.
-        // O valor 120 provavelmente se refere à altura Y do centro do projétil em relação ao Boss.
-        // Vamos usar o centro do Boss para simplificar, já que não temos uma "boca" definida.
-        // Ou você pode ajustar para y + 120 se quiser que saia de uma altura fixa do topo do boss.
-        int projectileY = this.y + (BOSS_HEIGHT / 2); // Meio do boss
-        // Limite de 120px de altura para o projétil em relação ao topo do personagem
-        // Se for 120 da coordenada Y do Boss, seria this.y + 120. Vamos usar isso.
-        // int projectileY = this.y + 120; // Alvo em 120px do topo do Boss
+        Player targetPlayer = getTargetPlayer();
+        if (targetPlayer != null) {
+            fireHomingProjectile(targetPlayer, 8, 10, 0); // Sem variação extra de ângulo para este
+        }
+    }
 
-        // Direção: aleatória ou para onde o player estiver? Para "simples", vamos para a esquerda.
-        // Se for sempre para a esquerda, direction = -1
-        int direction = -1; // Para a esquerda
+    // Método original para 3 projéteis de pouso (se não for bullet hell)
+    private void fireLandProjectile() {
+        Player targetPlayer = getTargetPlayer();
+        if (targetPlayer != null) {
+            fireHomingProjectile(targetPlayer, 10, 15, 0); // Sem variação extra de ângulo para este
+        }
+    }
 
-        // Cria e adiciona o projétil simples (tamanho e velocidade padrão de um tiro do player, por exemplo)
-        // Bullet(x, y, width, height, speed, direction, damage)
-        bossProjectiles.add(new Bullet(x + BOSS_WIDTH / 2, projectileY, 20, 10, 8, direction, 10));
+    // Novo método para o ataque especial (mantido)
+    private void fireSpecialAttack() {
+        Player targetPlayer = getTargetPlayer();
+        if (targetPlayer != null) {
+            fireHomingProjectile(targetPlayer, 9, 12, 5); // Bala central com pequena variação
+            fireHomingProjectile(targetPlayer, 9, 12, -5); // Bala desviada para um lado
+            fireHomingProjectile(targetPlayer, 9, 12, 5); // Bala desviada para o outro lado
+        }
+    }
+
+    // NOVO: Método para disparar um projétil da chuva de balas
+    private void fireBulletHellProjectile(int projectileIndex) {
+        Player targetPlayer = getTargetPlayer();
+        if (targetPlayer == null) return;
+
+        int startX = this.x + BOSS_WIDTH / 2;
+        int startY = this.y + BOSS_HEIGHT / 2;
+
+        // Calcular o ângulo base para o jogador
+        double baseAngle = Math.atan2(targetPlayer.getY() + targetPlayer.getCurrentHeight() / 2 - startY, 
+                                      targetPlayer.getX() + 40 - startX);
+
+        // Definir a variação do ângulo e velocidade para criar o efeito de leque e aceleração
+        double angleOffset = 0;
+        int speed = 0;
+        int damage = 0;
+
+        // Distribuir os projéteis em um leque e variar a velocidade
+        switch (projectileIndex) {
+            case 0: // Projétil inicial, mais lento e mais centrado
+                angleOffset = Math.toRadians(-15); // Exemplo de desvio
+                speed = 7;
+                damage = 8;
+                break;
+            case 1:
+                angleOffset = Math.toRadians(0); // Centrado
+                speed = 9;
+                damage = 9;
+                break;
+            case 2:
+                angleOffset = Math.toRadians(15);
+                speed = 7;
+                damage = 8;
+                break;
+            case 3: // Mais rápido
+                angleOffset = Math.toRadians(-25);
+                speed = 11;
+                damage = 10;
+                break;
+            case 4:
+                angleOffset = Math.toRadians(25);
+                speed = 11;
+                damage = 10;
+                break;
+            case 5: // Mais rápido ainda
+                angleOffset = Math.toRadians(-35);
+                speed = 13;
+                damage = 12;
+                break;
+            case 6: // Final e mais rápido
+                angleOffset = Math.toRadians(35);
+                speed = 13;
+                damage = 12;
+                break;
+        }
+        
+        // Pequena chance de ser teleguiado (50%)
+        if (random.nextBoolean()) {
+             // Redireciona um pouco mais para o jogador, adicionando um fator teleguiado
+            double homingFactor = 0.5; // Ajuste este valor para mais ou menos "homing"
+            double angleToPlayer = Math.atan2(targetPlayer.getY() + targetPlayer.getCurrentHeight() / 2 - startY, 
+                                             targetPlayer.getX() + 40 - startX);
+            baseAngle = baseAngle * (1 - homingFactor) + angleToPlayer * homingFactor;
+        }
+
+        double finalAngle = baseAngle + angleOffset;
+
+        int dx = (int) (Math.cos(finalAngle) * speed);
+        int dy = (int) (Math.sin(finalAngle) * speed);
+
+        bossProjectiles.add(new Bullet(startX, startY, 20, 20, new Point(dx, dy), damage));
     }
 
 
-    // NOVO MÉTODO: Dispara um dos 3 projéteis ao aterrissar
-    private void fireLandProjectile() {
-        // Altura do projétil: na altura do personagem (do Player), até 120px de y do boss.
-        // Considerando que "altura do personagem" se refere ao Y do Player.
-        // E "pode ser até 120" como um limite superior para o Y do projétil (ou que o projétil pode vir de Y=120)
-        // Para simplificar, vamos atirar da altura fixa Y=120 do Boss, se estiver dentro da área do Boss.
-        // Ou da altura do player, se houver um player.
+    private Player getTargetPlayer() {
         Player p1 = GamePanel.getInstance().getPlayer1();
         Player p2 = GamePanel.getInstance().getPlayer2();
-        Player targetPlayer = (p1 != null) ? p1 : p2; // Pega o player 1 se existir, senão o 2
 
-        int projectileY = this.y + 120; // Atira de 120px da coordenada Y do Boss
-        // Ou você pode usar a altura do player se quiser que ele mire na altura do player no chão
-        if (targetPlayer != null) {
-             projectileY = targetPlayer.getY() + (targetPlayer.getCurrentHeight() / 2);
-             // E garantir que não seja menor que um certo valor para não ir pro céu
-             if (projectileY < this.y + 100) projectileY = this.y + 100; // Mínimo de 100px do topo do boss
-             if (projectileY > this.y + BOSS_HEIGHT - 20) projectileY = this.y + BOSS_HEIGHT - 20; // Máximo
+        if (p1 != null && p2 != null) {
+            return p1; // Preferência por p1
+        } else if (p1 != null) {
+            return p1;
+        } else if (p2 != null) {
+            return p2;
         }
-
-
-        int direction = -1; // SEMPRE para a esquerda
-
-        // Tamanho maior para os projéteis de aterrissagem, como 50x20
-        // Bullet(x, y, width, height, speed, direction, damage)
-        bossProjectiles.add(new Bullet(x + BOSS_WIDTH / 2, projectileY, 50, 20, 10, direction, 15));
+        return null;
     }
 
+    // Método fireHomingProjectile atualizado para aceitar variação de ângulo
+    private void fireHomingProjectile(Player targetPlayer, int speed, int damage, double angleVariationDegrees) {
+        int targetX = targetPlayer.getX() + 40;
+        int targetY = targetPlayer.getY() + targetPlayer.getCurrentHeight() / 2;
+
+        int startX = this.x + BOSS_WIDTH / 2;
+        int startY = this.y + BOSS_HEIGHT / 2;
+
+        double angle = Math.atan2(targetY - startY, targetX - startX);
+
+        // Aplica a variação de ângulo
+        angle += Math.toRadians(angleVariationDegrees);
+
+        int dx = (int) (Math.cos(angle) * speed);
+        int dy = (int) (Math.sin(angle) * speed);
+
+        bossProjectiles.add(new Bullet(startX, startY, 20, 20, new Point(dx, dy), damage));
+    }
 
     public int getHealth() {
         return health;
@@ -180,18 +288,15 @@ public class Boss {
         }
     }
 
-    // Reintroduzido: Método para verificar colisões dos projéteis do Boss com jogadores
     public void checkBossProjectiles(Player player) {
         bossProjectiles.removeIf(bullet -> {
             if (bullet.getBounds().intersects(player.getBounds())) {
-                // Apenas aplica dano se o player estiver no chão (como na versão anterior)
-                // Ou você pode remover essa condição se quiser que cause dano no ar também.
                 if (player.isOnGround()) {
                     player.takeDamage(bullet.getDamage());
                 }
-                return true; // Remove o projétil após colidir
+                return true;
             }
-            return false; // Mantém o projétil
+            return false;
         });
     }
 }

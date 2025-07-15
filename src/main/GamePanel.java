@@ -96,12 +96,12 @@ public class GamePanel extends JPanel implements Runnable {
         // POSIÇÕES ORIGINAIS DAS PLATAFORMAS
         int p1X = 200;
         int p1Y = 650;
-        int p3X = bossX - 750;
-        int p3Y = p1Y;
-        int p2X = 600;
+        int p3X = bossX - 1150;
+        int p3Y = 645;
+        int p2X = 400;
         int p2Y = 250;
 
-        int platW = 300, platH = 20;
+        int platW = 100, platH = 20;
         platforms.add(new Platform(p1X, p1Y, platW, platH));
         platforms.add(new Platform(p2X, p2Y, platW, platH));
         platforms.add(new Platform(p3X, p3Y, platW, platH));

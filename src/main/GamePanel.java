@@ -84,7 +84,7 @@ public class GamePanel extends JPanel implements Runnable {
     }
 
     public void setupGameObjects() {
-        GROUND_Y = HEIGHT - 60;
+        GROUND_Y = HEIGHT - 178;
 
         player1 = new Player(100, GROUND_Y, keyHandler, KeyEvent.VK_A, KeyEvent.VK_D, KeyEvent.VK_W, KeyEvent.VK_S, KeyEvent.VK_F, GROUND_Y);
         player2 = new Player(200, GROUND_Y, keyHandler, KeyEvent.VK_LEFT, KeyEvent.VK_RIGHT, KeyEvent.VK_UP, KeyEvent.VK_DOWN, KeyEvent.VK_ENTER, GROUND_Y);

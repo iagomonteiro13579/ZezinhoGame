@@ -1,6 +1,7 @@
 package main;
 
 import java.awt.*;
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -9,7 +10,7 @@ public class Boss {
     private int x, y;
     private int health = 2200;
 
-    public static final int BOSS_WIDTH = 70;
+    public static final int BOSS_WIDTH = 180;
     public static final int BOSS_HEIGHT = 320;
 
     private double verticalVelocity = 0;
@@ -42,14 +43,18 @@ public class Boss {
     private int chargeSpeed = 15;
     private long lastChargeAttackTime = 0;
     private final long CHARGE_ATTACK_COOLDOWN_NANOS = 4_000_000_000L;
-    private final int CHARGE_BUFFER_X = 50; 
+    private final int CHARGE_BUFFER_X = 50;
 
     private Random random = new Random();
+
+    // 👉 Sprite do boss
+    private BufferedImage bossSprite;
 
     public Boss(int x, int y) {
         this.x = x;
         this.y = y;
         this.bossProjectiles = new ArrayList<>();
+        this.bossSprite = SpriteManager.getSprite("boss.png"); // Carrega o sprite
     }
 
     public void update() {
@@ -137,8 +142,15 @@ public class Boss {
     }
 
     public void draw(Graphics g) {
-        g.setColor(Color.RED);
-        g.fillRect(x, y, BOSS_WIDTH, BOSS_HEIGHT);
+        // 🖼️ Desenha o sprite se carregado, senão mostra fallback (retângulo)
+        if (bossSprite != null) {
+            g.drawImage(bossSprite, x, y, BOSS_WIDTH, BOSS_HEIGHT, null);
+        } else {
+            g.setColor(Color.RED);
+            g.fillRect(x, y, BOSS_WIDTH, BOSS_HEIGHT);
+        }
+
+        // Barra de vida
         g.setColor(Color.WHITE);
         g.drawString("Boss HP: " + health, x, y - 10);
 
@@ -147,134 +159,7 @@ public class Boss {
         }
     }
 
-    private void startJumpAttack() {
-        if (isOnGround) {
-            verticalVelocity = jumpSpeed;
-            isOnGround = false;
-            isJumping = true;
-        }
-    }
-
-    private void fireSingleJumpProjectile() {
-        Player targetPlayer = getTargetPlayer();
-        if (targetPlayer != null) {
-            fireHomingProjectile(targetPlayer, 8, 10, 0); 
-        }
-    }
-
-    private void fireLandProjectile() {
-        Player targetPlayer = getTargetPlayer();
-        if (targetPlayer != null) {
-            fireHomingProjectile(targetPlayer, 10, 15, 0); 
-        }
-    }
-
-    private void fireSpecialAttack() {
-        Player targetPlayer = getTargetPlayer();
-        if (targetPlayer != null) {
-            fireHomingProjectile(targetPlayer, 9, 12, 5); 
-            fireHomingProjectile(targetPlayer, 9, 12, -5); 
-            fireHomingProjectile(targetPlayer, 9, 12, 5); 
-        }
-    }
-
-    private void fireBulletHellProjectile(int projectileIndex) {
-        Player targetPlayer = getTargetPlayer();
-        if (targetPlayer == null) return;
-
-        int startX = this.x + BOSS_WIDTH / 2;
-        int startY = this.y + BOSS_HEIGHT / 2;
-
-        double baseAngle = Math.atan2(targetPlayer.getY() + targetPlayer.getCurrentHeight() / 2 - startY, 
-                                      targetPlayer.getX() + 40 - startX);
-
-        double angleOffset = 0;
-        int speed = 0;
-        int damage = 0;
-
-        switch (projectileIndex) {
-            case 0: 
-                angleOffset = Math.toRadians(-15); 
-                speed = 7;
-                damage = 8;
-                break;
-            case 1:
-                angleOffset = Math.toRadians(0); 
-                speed = 9;
-                damage = 9;
-                break;
-            case 2:
-                angleOffset = Math.toRadians(15);
-                speed = 7;
-                damage = 8;
-                break;
-            case 3: 
-                angleOffset = Math.toRadians(-25);
-                speed = 11;
-                damage = 10;
-                break;
-            case 4:
-                angleOffset = Math.toRadians(25);
-                speed = 11;
-                damage = 10;
-                break;
-            case 5: 
-                angleOffset = Math.toRadians(-35);
-                speed = 13;
-                damage = 12;
-                break;
-            case 6: 
-                angleOffset = Math.toRadians(35);
-                speed = 13;
-                damage = 12;
-                break;
-        }
-        
-        if (random.nextBoolean()) {
-            double homingFactor = 0.5; 
-            double angleToPlayer = Math.atan2(targetPlayer.getY() + targetPlayer.getCurrentHeight() / 2 - startY, 
-                                             targetPlayer.getX() + 40 - startX);
-            baseAngle = baseAngle * (1 - homingFactor) + angleToPlayer * homingFactor;
-        }
-
-        double finalAngle = baseAngle + angleOffset;
-
-        int dx = (int) (Math.cos(finalAngle) * speed);
-        int dy = (int) (Math.sin(finalAngle) * speed);
-
-        bossProjectiles.add(new Bullet(startX, startY, 20, 20, new Point(dx, dy), damage));
-    }
-
-    private Player getTargetPlayer() {
-        Player p1 = GamePanel.getInstance().getPlayer1();
-        Player p2 = GamePanel.getInstance().getPlayer2();
-
-        if (p1 != null && p2 != null) {
-            return p1; 
-        } else if (p1 != null) {
-            return p1;
-        } else if (p2 != null) {
-            return p2;
-        }
-        return null;
-    }
-
-    private void fireHomingProjectile(Player targetPlayer, int speed, int damage, double angleVariationDegrees) {
-        int targetX = targetPlayer.getX() + 40;
-        int targetY = targetPlayer.getY() + targetPlayer.getCurrentHeight() / 2;
-
-        int startX = this.x + BOSS_WIDTH / 2;
-        int startY = this.y + BOSS_HEIGHT / 2;
-
-        double angle = Math.atan2(targetY - startY, targetX - startX);
-
-        angle += Math.toRadians(angleVariationDegrees);
-
-        int dx = (int) (Math.cos(angle) * speed);
-        int dy = (int) (Math.sin(angle) * speed);
-
-        bossProjectiles.add(new Bullet(startX, startY, 20, 20, new Point(dx, dy), damage));
-    }
+    // ... [restante do código permanece exatamente igual, incluindo os métodos: ataque, colisão, homing, etc.]
 
     public int getHealth() {
         return health;
@@ -283,7 +168,7 @@ public class Boss {
     public Rectangle getBounds() {
         return new Rectangle(x, y, BOSS_WIDTH, BOSS_HEIGHT);
     }
-    
+
     public void takeDamage(int damage) {
         this.health -= damage;
         if (this.health <= 0) {
@@ -304,15 +189,20 @@ public class Boss {
             return false;
         });
     }
+
+    private void startJumpAttack() {
+        if (isOnGround) {
+            verticalVelocity = jumpSpeed;
+            isOnGround = false;
+            isJumping = true;
+        }
+    }
+
     private void startChargeAttack() {
         isCharging = true;
         Player targetPlayer = getTargetPlayer();
         if (targetPlayer != null) {
-            if (targetPlayer.getX() < this.x) {
-                chargeDirection = -1;
-            } else {
-                chargeDirection = 1;
-            }
+            chargeDirection = (targetPlayer.getX() < this.x) ? -1 : 1;
         } else {
             chargeDirection = random.nextBoolean() ? 1 : -1;
         }
@@ -327,5 +217,88 @@ public class Boss {
             isCharging = false;
             chargeDirection = 0;
         }
+    }
+
+    private Player getTargetPlayer() {
+        Player p1 = GamePanel.getInstance().getPlayer1();
+        Player p2 = GamePanel.getInstance().getPlayer2();
+        return (p1 != null) ? p1 : p2;
+    }
+
+    private void fireHomingProjectile(Player targetPlayer, int speed, int damage, double angleVariationDegrees) {
+        int targetX = targetPlayer.getX() + 40;
+        int targetY = targetPlayer.getY() + targetPlayer.getCurrentHeight() / 2;
+
+        int startX = this.x + BOSS_WIDTH / 2;
+        int startY = this.y + BOSS_HEIGHT / 2;
+
+        double angle = Math.atan2(targetY - startY, targetX - startX);
+        angle += Math.toRadians(angleVariationDegrees);
+
+        int dx = (int) (Math.cos(angle) * speed);
+        int dy = (int) (Math.sin(angle) * speed);
+
+        bossProjectiles.add(new Bullet(startX, startY, 20, 20, new Point(dx, dy), damage));
+    }
+
+    private void fireSingleJumpProjectile() {
+        Player targetPlayer = getTargetPlayer();
+        if (targetPlayer != null) {
+            fireHomingProjectile(targetPlayer, 8, 10, 0);
+        }
+    }
+
+    private void fireLandProjectile() {
+        Player targetPlayer = getTargetPlayer();
+        if (targetPlayer != null) {
+            fireHomingProjectile(targetPlayer, 10, 15, 0);
+        }
+    }
+
+    private void fireSpecialAttack() {
+        Player targetPlayer = getTargetPlayer();
+        if (targetPlayer != null) {
+            fireHomingProjectile(targetPlayer, 9, 12, 5);
+            fireHomingProjectile(targetPlayer, 9, 12, -5);
+            fireHomingProjectile(targetPlayer, 9, 12, 5);
+        }
+    }
+
+    private void fireBulletHellProjectile(int projectileIndex) {
+        Player targetPlayer = getTargetPlayer();
+        if (targetPlayer == null) return;
+
+        int startX = this.x + BOSS_WIDTH / 2;
+        int startY = this.y + BOSS_HEIGHT / 2;
+
+        double baseAngle = Math.atan2(targetPlayer.getY() + targetPlayer.getCurrentHeight() / 2 - startY, 
+                                      targetPlayer.getX() + 40 - startX);
+
+        double angleOffset = 0;
+        int speed = 0;
+        int damage = 0;
+
+        switch (projectileIndex) {
+            case 0: angleOffset = Math.toRadians(-15); speed = 7; damage = 8; break;
+            case 1: angleOffset = Math.toRadians(0);   speed = 9; damage = 9; break;
+            case 2: angleOffset = Math.toRadians(15);  speed = 7; damage = 8; break;
+            case 3: angleOffset = Math.toRadians(-25); speed = 11; damage = 10; break;
+            case 4: angleOffset = Math.toRadians(25);  speed = 11; damage = 10; break;
+            case 5: angleOffset = Math.toRadians(-35); speed = 13; damage = 12; break;
+            case 6: angleOffset = Math.toRadians(35);  speed = 13; damage = 12; break;
+        }
+
+        if (random.nextBoolean()) {
+            double homingFactor = 0.5;
+            double angleToPlayer = Math.atan2(targetPlayer.getY() + targetPlayer.getCurrentHeight() / 2 - startY, 
+                                              targetPlayer.getX() + 40 - startX);
+            baseAngle = baseAngle * (1 - homingFactor) + angleToPlayer * homingFactor;
+        }
+
+        double finalAngle = baseAngle + angleOffset;
+        int dx = (int) (Math.cos(finalAngle) * speed);
+        int dy = (int) (Math.sin(finalAngle) * speed);
+
+        bossProjectiles.add(new Bullet(startX, startY, 20, 20, new Point(dx, dy), damage));
     }
 }

@@ -1,6 +1,8 @@
 package main;
 
+
 import java.awt.*;
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -10,8 +12,12 @@ public class Player {
     private int height = 160;
     private int currentHeight;
 
-    private int speed = 6;
+    private BufferedImage currentSprite;
+    private int animationFrame = 0;
+    private int frameCounter = 0;
+    private final int ANIMATION_SPEED = 8;
 
+    private int speed = 6;
     private int jumpSpeed = -60;
     private double gravity = 3.5;
     private double verticalVelocity = 0;
@@ -34,12 +40,11 @@ public class Player {
     private final long shotIntervalNanos = 100_000_000L;
 
     private long lastCollisionTime = 0;
-    private final long collisionCooldownNanos = 1_000_000_000L; // 1 segundo
+    private final long collisionCooldownNanos = 1_000_000_000L;
 
-    // Novos para invulnerabilidade
     private boolean invulnerable = false;
     private long invulnerableStartTime = 0;
-    private final long invulnerableDurationNanos = 1_000_000_000L; // 3 segundos
+    private final long invulnerableDurationNanos = 1_000_000_000L;
 
     public Player(int x, int y, KeyHandler kh, int left, int right, int up, int down, int shoot, int groundY) {
         this.x = x;
@@ -51,20 +56,19 @@ public class Player {
         this.upKey = up;
         this.downKey = down;
         this.shootKey = shoot;
-        bullets = new ArrayList<>();
         this.groundY = groundY;
+        bullets = new ArrayList<>();
     }
 
     public void update() {
         if (!isAlive) return;
 
-        // Atualiza invulnerabilidade
-        if (invulnerable) {
-        long now = System.nanoTime();
-        if (now - invulnerableStartTime >= invulnerableDurationNanos) {
+        // Atualiza sprite
+        updateSprite();
+
+        if (invulnerable && System.nanoTime() - invulnerableStartTime >= invulnerableDurationNanos) {
             invulnerable = false;
         }
-    }
 
         if (keyHandler.isKeyPressed(leftKey)) x -= speed;
         if (keyHandler.isKeyPressed(rightKey)) x += speed;
@@ -72,7 +76,6 @@ public class Player {
         if (x + width > GamePanel.WIDTH) x = GamePanel.WIDTH - width;
 
         fallThroughPlatform = keyHandler.isKeyPressed(downKey) && keyHandler.isKeyPressed(upKey);
-
         if (keyHandler.isKeyPressed(upKey) && isOnGround && !fallThroughPlatform) {
             verticalVelocity = jumpSpeed;
             isOnGround = false;
@@ -83,14 +86,18 @@ public class Player {
             y += verticalVelocity;
         }
 
-        if (keyHandler.isKeyPressed(downKey) && !isDucking) {
-            isDucking = true;
-            y += (height - (height / 2));
-            currentHeight = height / 2;
-        } else if (!keyHandler.isKeyPressed(downKey) && isDucking) {
-            isDucking = false;
-            y -= (height - currentHeight);
-            currentHeight = height;
+        if (keyHandler.isKeyPressed(downKey)) {
+            if (!isDucking) {
+                isDucking = true;
+                y += (height / 2);
+                currentHeight = height / 2;
+            }
+        } else {
+            if (isDucking) {
+                isDucking = false;
+                y -= (height / 2);
+                currentHeight = height;
+            }
         }
 
         if (y + currentHeight >= groundY) {
@@ -111,7 +118,7 @@ public class Player {
             }
         }
 
-        for (Bullet b : bullets) b.update();
+        bullets.forEach(Bullet::update);
         bullets.removeIf(b -> !b.isVisible());
 
         Boss boss = GamePanel.getInstance().getBoss();
@@ -121,39 +128,48 @@ public class Player {
 
         checkBulletsForDamage(GamePanel.player1 == this ? GamePanel.player2.bullets : GamePanel.player1.bullets);
     }
-
-    public void draw(Graphics g) {
+     public void draw(Graphics g) {
         if (!isAlive) return;
 
         if (invulnerable) {
-            // Player piscando / transparente quando invulnerável
             Graphics2D g2d = (Graphics2D) g;
-            float alpha = 0.5f; // 50% transparente
-            AlphaComposite ac = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha);
-            g2d.setComposite(ac);
-            g2d.setColor(Color.BLUE);
-            g2d.fillRect(x, y, width, currentHeight);
+            g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.5f));
+            g2d.drawImage(currentSprite, x, y, width, currentHeight, null);
             g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
         } else {
-            g.setColor(Color.BLUE);
-            g.fillRect(x, y, width, currentHeight);
+            g.drawImage(currentSprite, x, y, width, currentHeight, null);
         }
 
         g.setColor(Color.WHITE);
         g.drawString("Player HP: " + health, x, y - 10);
-        for (Bullet b : bullets) b.draw(g);
+        bullets.forEach(b -> b.draw(g));
     }
-    public boolean isInvulnerable() {
-    return invulnerable;
-}
 
+     private void updateSprite() {
+        frameCounter++;
+        if (frameCounter >= ANIMATION_SPEED) {
+            frameCounter = 0;
+            animationFrame = (animationFrame + 1) % 4;
+        }
+
+        if (!isAlive) return;
+
+        if (keyHandler.isKeyPressed(downKey)) {
+            currentSprite = SpriteManager.getSprite("abaixado-removebg-preview.png");
+        } else if (!isOnGround) {
+            int puloIndex = Math.min(animationFrame, 3);
+            currentSprite = SpriteManager.getSprite("pulo_" + (puloIndex + 1) + "-removebg-preview.png");
+        } else if (keyHandler.isKeyPressed(leftKey) || keyHandler.isKeyPressed(rightKey)) {
+            currentSprite = SpriteManager.getSprite("andando_" + (animationFrame % 2 + 1) + "-removebg-preview.png");
+        } else if (keyHandler.isKeyPressed(shootKey)) {
+            currentSprite = SpriteManager.getSprite("atirando_1-removebg-preview.png");
+        } else {
+            currentSprite = SpriteManager.getSprite("parado_1-removebg-preview.png");
+        }
+    }
 
     public void shoot() {
         bullets.add(new Bullet(x + width / 2, y + currentHeight / 2, 20, 10, 15, 1, 10));
-    }
-
-    public Rectangle getBounds() {
-        return new Rectangle(x, y, width, currentHeight);
     }
 
     public void checkBullets(Boss boss) {
@@ -175,7 +191,6 @@ public class Player {
                     invulnerable = true;
                     invulnerableStartTime = currentTime;
                     lastCollisionTime = currentTime;
-                    // NÃO remover bala para atravessar
                 }
             }
         }
@@ -223,43 +238,43 @@ public class Player {
         }
     }
 
-   public void takeDamage(int damage) {
-    if (!invulnerable) {
-        health -= damage;
-        if (health <= 0) {
-            health = 0;
-            isAlive = false;
+    public void takeDamage(int damage) {
+        if (!invulnerable) {
+            health -= damage;
+            if (health <= 0) {
+                health = 0;
+                isAlive = false;
+            }
+            invulnerable = true;
+            invulnerableStartTime = System.nanoTime();
         }
-        invulnerable = true;
-        invulnerableStartTime = System.nanoTime();
     }
-}
 
-    public int getHealth() {
-        return health;
+    public Rectangle getBounds() {
+        return new Rectangle(x, y, width, currentHeight);
+    }
+
+    public boolean isInvulnerable() {
+        return invulnerable;
     }
 
     public boolean isOnGround() {
         return isOnGround;
     }
 
-    public int getCurrentHeight() {
-        return currentHeight;
-    }
-
-    public int getX() {
-        return x;
-    }
-
-    public int getY() {
-        return y;
-    }
-
-    public int getWidth() {
-        return width;
+    public int getHealth() {
+        return health;
     }
 
     public boolean isAlive() {
         return isAlive;
     }
-}
+
+    public int getX() { return x; }
+
+    public int getY() { return y; }
+
+    public int getWidth() { return width; }
+
+    public int getCurrentHeight() { return currentHeight; }
+} 

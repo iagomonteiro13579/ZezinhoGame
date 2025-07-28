@@ -22,14 +22,14 @@ public class GamePanel extends JPanel implements Runnable {
     private boolean gameOver = false;
 
     public static GameState gameState = GameState.RUNNING;
+    private BufferedImage backgroundImage;
+    private BufferedImage victoryScreenImage;
 
     public static Player player1;
     public static Player player2;
     public static Boss boss;
 
     private KeyHandler keyHandler;
-
-    private BufferedImage backgroundImage;
     private List<Platform> platforms;
 
     private int selectedOption = 0;
@@ -44,7 +44,7 @@ public class GamePanel extends JPanel implements Runnable {
     private JFrame fullScreenFrame;
 
     enum GameState {
-        RUNNING, MENU
+        RUNNING, MENU, VICTORY
     }
 
     private static GamePanel instance;
@@ -57,9 +57,9 @@ public class GamePanel extends JPanel implements Runnable {
 
         keyHandler = new KeyHandler();
         addKeyListener(keyHandler);
-
         setFocusable(true);
 
+        // Carrega o background
         try {
             URL imageUrl = getClass().getResource("/res/background/background.png");
             if (imageUrl != null) backgroundImage = ImageIO.read(imageUrl);
@@ -67,6 +67,16 @@ public class GamePanel extends JPanel implements Runnable {
         } catch (IOException e) {
             e.printStackTrace();
             setBackground(Color.CYAN);
+        }
+
+        // Carrega a imagem de vitória
+        try {
+            URL victoryImageUrl = getClass().getResource("/res/background/teladevitoria.png");
+            if (victoryImageUrl != null) {
+                victoryScreenImage = ImageIO.read(victoryImageUrl);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
         }
 
         graphicsDevice = GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice();
@@ -96,18 +106,10 @@ public class GamePanel extends JPanel implements Runnable {
 
         platforms.clear();
 
-        // POSIÇÕES ORIGINAIS DAS PLATAFORMAS
-        int p1X = 200;
-        int p1Y = 650;
-        int p3X = bossX - 1150;
-        int p3Y = 645;
-        int p2X = 400;
-        int p2Y = 250;
-
         int platW = 100, platH = 20;
-        platforms.add(new Platform(p1X, p1Y, platW, platH));
-        platforms.add(new Platform(p2X, p2Y, platW, platH));
-        platforms.add(new Platform(p3X, p3Y, platW, platH));
+        platforms.add(new Platform(200, 650, platW, platH));
+        platforms.add(new Platform(400, 250, platW, platH));
+        platforms.add(new Platform(bossX - 1150, 645, platW, platH));
     }
 
     public void startGame() {
@@ -135,17 +137,25 @@ public class GamePanel extends JPanel implements Runnable {
 
     public void update() {
         if (gameState == GameState.MENU) return;
+        if (gameState == GameState.VICTORY) return;
+
         player1.update();
         player2.update();
         boss.update();
+
         player1.checkBullets(boss);
         player2.checkBullets(boss);
 
-         if (boss != null) {
-        player1.checkBossCollision(boss);
-        player2.checkBossCollision(boss);
-    }
-        // Verifica se ambos jogadores morreram
+        if (boss != null && boss.getHealth() <= 0) {
+            gameState = GameState.VICTORY;
+            return;
+        }
+
+        if (boss != null) {
+            player1.checkBossCollision(boss);
+            player2.checkBossCollision(boss);
+        }
+
         if (!player1.isAlive() && !player2.isAlive()) {
             triggerGameOver();
         }
@@ -171,17 +181,27 @@ public class GamePanel extends JPanel implements Runnable {
         Graphics2D g2d = (Graphics2D) g;
 
         if (gameOver) {
-            // Tela preta
             g2d.setColor(Color.BLACK);
             g2d.fillRect(0, 0, WIDTH, HEIGHT);
-
-            // Texto "GAME OVER"
             g2d.setFont(new Font("Arial", Font.BOLD, 64));
             g2d.setColor(Color.WHITE);
             String text = "GAME OVER";
             int textWidth = g2d.getFontMetrics().stringWidth(text);
             int textHeight = g2d.getFontMetrics().getAscent();
             g2d.drawString(text, (WIDTH - textWidth) / 2, (HEIGHT + textHeight) / 2);
+            return;
+        }
+
+        if (gameState == GameState.VICTORY) {
+            if (victoryScreenImage != null) {
+                g2d.drawImage(victoryScreenImage, 0, 0, WIDTH, HEIGHT, null);
+            } else {
+                g2d.setColor(Color.GREEN);
+                g2d.fillRect(0, 0, WIDTH, HEIGHT);
+                g2d.setColor(Color.BLACK);
+                g2d.setFont(new Font("Arial", Font.BOLD, 64));
+                g2d.drawString("VOCÊ VENCEU!", WIDTH / 2 - 200, HEIGHT / 2);
+            }
             return;
         }
 

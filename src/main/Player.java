@@ -11,6 +11,7 @@ public class Player {
     private int width = 80;
     private int height = 160;
     private int currentHeight;
+    
 
     private BufferedImage currentSprite;
     private int animationFrame = 0;
@@ -168,9 +169,11 @@ public class Player {
         }
     }
 
-    public void shoot() {
-        bullets.add(new Bullet(x + width / 2, y + currentHeight / 2, 20, 10, 15, 1, 10));
-    }
+   public void shoot() {
+    int bulletX = x + width / 2 + 10;
+    int bulletY = y + currentHeight / 2 - 30; // Sobe 30 pixels
+    bullets.add(new Bullet(bulletX, bulletY, 20, 10, 10, 1, 5));
+}
 
     public void checkBullets(Boss boss) {
         bullets.removeIf(b -> {

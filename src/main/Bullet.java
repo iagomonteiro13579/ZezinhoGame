@@ -14,6 +14,8 @@ public class Bullet {
     private int dx = 0;
     private int dy = 0;
 
+    private boolean isBossBullet = false;
+
     // Construtor usado pelo Player (direction: -1 ou 1)
     public Bullet(int x, int y, int width, int height, int speed, int direction, int damage) {
         this.x = x;
@@ -23,6 +25,7 @@ public class Bullet {
         this.speed = speed;
         this.direction = direction;
         this.damage = damage;
+        this.isBossBullet = false;
     }
 
     // Construtor usado pelo Boss (usando Point para evitar conflito de assinaturas)
@@ -34,8 +37,9 @@ public class Bullet {
         this.dx = velocity.x;
         this.dy = velocity.y;
         this.damage = damage;
-        this.direction = 0; // Ignora direction
-        this.speed = 0;     // Ignora speed
+        this.direction = 0;
+        this.speed = 0;
+        this.isBossBullet = true;
     }
 
     public void update() {
@@ -54,32 +58,38 @@ public class Bullet {
         }
 
         // Colisão com boss (bala do player)
-        if (direction != 0 && GamePanel.boss != null && getBounds().intersects(GamePanel.boss.getBounds())) {
+        if (!isBossBullet && GamePanel.boss != null && getBounds().intersects(GamePanel.boss.getBounds())) {
             GamePanel.boss.takeDamage(damage);
             visible = false;
         }
 
         // Colisão com Player 1 (bala do boss)
-        if (direction == 0 && GamePanel.player1 != null && getBounds().intersects(GamePanel.player1.getBounds())) {
+        if (isBossBullet && GamePanel.player1 != null && getBounds().intersects(GamePanel.player1.getBounds())) {
             if (!GamePanel.player1.isInvulnerable()) {
                 GamePanel.player1.takeDamage(damage);
-                // NÃO remover bala para atravessar o player
+                // Bala atravessa o player
             }
         }
 
         // Colisão com Player 2 (bala do boss)
-        if (direction == 0 && GamePanel.player2 != null && getBounds().intersects(GamePanel.player2.getBounds())) {
+        if (isBossBullet && GamePanel.player2 != null && getBounds().intersects(GamePanel.player2.getBounds())) {
             if (!GamePanel.player2.isInvulnerable()) {
                 GamePanel.player2.takeDamage(damage);
-                // NÃO remover bala para atravessar o player
+                // Bala atravessa o player
             }
         }
     }
 
     public void draw(Graphics g) {
-        if (visible) {
-            g.setColor(Color.BLUE);
-            g.fillRect(x, y, width, height);
+        if (!visible) return;
+
+        if (isBossBullet) {
+            g.setColor(Color.RED);
+            g.fillOval(x, y, width, height); // Bala do boss: vermelha e redonda
+        } else {
+            g.setColor(Color.cyan
+);
+            g.fillRect(x, y, width, height); // Bala do player: azul e retangular
         }
     }
 

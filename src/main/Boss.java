@@ -24,37 +24,39 @@ public class Boss {
 
     private boolean hasJumpedAndNotFiredYet = false;
     private long lastJumpAttackTime = 0;
-    private final long JUMP_ATTACK_DELAY_NANOS = 300_000_000L;
+    private final long JUMP_ATTACK_DELAY_NANOS = 100_000_000L;
 
     private int projectilesToFireOnLand = 0;
     private long lastLandAttackTime = 0;
     private final long LAND_ATTACK_INTERVAL_NANOS = 150_000_000L;
 
     private long lastSpecialAttackTime = 0;
-    private final long SPECIAL_ATTACK_COOLDOWN_NANOS = 2_000_000_000L; 
+    private final long SPECIAL_ATTACK_COOLDOWN_NANOS = 1_500_000_000L;
 
     private boolean isPerformingBulletHell = false;
     private int bulletHellProjectilesFired = 0;
-    private final int MAX_BULLET_HELL_PROJECTILES = 7; 
-    private final long BULLET_HELL_FIRE_INTERVAL_NANOS = 70_000_000L; 
+    private final int MAX_BULLET_HELL_PROJECTILES = 7;
+    private final long BULLET_HELL_FIRE_INTERVAL_NANOS = 50_000_000L;
 
     private boolean isCharging = false;
     private int chargeDirection = 0;
     private int chargeSpeed = 15;
     private long lastChargeAttackTime = 0;
-    private final long CHARGE_ATTACK_COOLDOWN_NANOS = 4_000_000_000L;
+    private final long CHARGE_ATTACK_COOLDOWN_NANOS = 2_000_000_000L;
     private final int CHARGE_BUFFER_X = 50;
 
     private Random random = new Random();
 
-    // 👉 Sprite do boss
     private BufferedImage bossSprite;
+
+    // ✅ Novo controle de alternância de alvo
+    private int currentTargetPlayer = 1;
 
     public Boss(int x, int y) {
         this.x = x;
         this.y = y;
         this.bossProjectiles = new ArrayList<>();
-        this.bossSprite = SpriteManager.getSprite("boss.png"); // Carrega o sprite
+        this.bossSprite = SpriteManager.getSprite("boss.png");
     }
 
     public void update() {
@@ -86,12 +88,12 @@ public class Boss {
             verticalVelocity = 0;
 
             if (isJumping) {
-                if (random.nextInt(100) < 20) { 
+                if (random.nextInt(100) < 20) {
                     isPerformingBulletHell = true;
                     bulletHellProjectilesFired = 0;
-                    lastLandAttackTime = System.nanoTime(); 
+                    lastLandAttackTime = System.nanoTime();
                 } else {
-                    projectilesToFireOnLand = 3; 
+                    projectilesToFireOnLand = 3;
                     lastLandAttackTime = System.nanoTime();
                 }
             }
@@ -115,22 +117,22 @@ public class Boss {
         if (isPerformingBulletHell && bulletHellProjectilesFired < MAX_BULLET_HELL_PROJECTILES && System.nanoTime() - lastLandAttackTime > BULLET_HELL_FIRE_INTERVAL_NANOS) {
             fireBulletHellProjectile(bulletHellProjectilesFired);
             bulletHellProjectilesFired++;
-            lastLandAttackTime = System.nanoTime(); 
-            
+            lastLandAttackTime = System.nanoTime();
+
             if (bulletHellProjectilesFired >= MAX_BULLET_HELL_PROJECTILES) {
-                isPerformingBulletHell = false; 
+                isPerformingBulletHell = false;
             }
         }
 
-        if (isOnGround && System.nanoTime() - lastSpecialAttackTime > SPECIAL_ATTACK_COOLDOWN_NANOS && random.nextInt(100) < 10) { 
+        if (isOnGround && System.nanoTime() - lastSpecialAttackTime > SPECIAL_ATTACK_COOLDOWN_NANOS && random.nextInt(100) < 10) {
             fireSpecialAttack();
-            lastSpecialAttackTime = System.nanoTime(); 
+            lastSpecialAttackTime = System.nanoTime();
         }
 
-        if (isOnGround && !isJumping && !isPerformingBulletHell && 
-            System.nanoTime() - lastChargeAttackTime > CHARGE_ATTACK_COOLDOWN_NANOS && 
+        if (isOnGround && !isJumping && !isPerformingBulletHell &&
+            System.nanoTime() - lastChargeAttackTime > CHARGE_ATTACK_COOLDOWN_NANOS &&
             random.nextInt(2000) < 10) {
-            
+
             startChargeAttack();
             lastChargeAttackTime = System.nanoTime();
         }
@@ -142,7 +144,6 @@ public class Boss {
     }
 
     public void draw(Graphics g) {
-        // 🖼️ Desenha o sprite se carregado, senão mostra fallback (retângulo)
         if (bossSprite != null) {
             g.drawImage(bossSprite, x, y, BOSS_WIDTH, BOSS_HEIGHT, null);
         } else {
@@ -150,7 +151,6 @@ public class Boss {
             g.fillRect(x, y, BOSS_WIDTH, BOSS_HEIGHT);
         }
 
-        // Barra de vida
         g.setColor(Color.WHITE);
         g.drawString("Boss HP: " + health, x, y - 10);
 
@@ -158,8 +158,6 @@ public class Boss {
             bullet.draw(g);
         }
     }
-
-    // ... [restante do código permanece exatamente igual, incluindo os métodos: ataque, colisão, homing, etc.]
 
     public int getHealth() {
         return health;
@@ -219,18 +217,37 @@ public class Boss {
         }
     }
 
+    // 🔁 Alterna entre os jogadores
     private Player getTargetPlayer() {
         Player p1 = GamePanel.getInstance().getPlayer1();
         Player p2 = GamePanel.getInstance().getPlayer2();
-        return (p1 != null) ? p1 : p2;
+
+        Player target = null;
+        if (currentTargetPlayer == 1 && p1 != null && p1.isAlive()) {
+            target = p1;
+        } else if (currentTargetPlayer == 2 && p2 != null && p2.isAlive()) {
+            target = p2;
+        }
+
+        // Alterna para o próximo alvo na próxima vez
+        currentTargetPlayer = (currentTargetPlayer == 1) ? 2 : 1;
+
+        // Fallback se o jogador atual estiver morto
+        if (target == null) {
+            return (p1 != null && p1.isAlive()) ? p1 : p2;
+        }
+
+        return target;
     }
 
     private void fireHomingProjectile(Player targetPlayer, int speed, int damage, double angleVariationDegrees) {
         int targetX = targetPlayer.getX() + 40;
         int targetY = targetPlayer.getY() + targetPlayer.getCurrentHeight() / 2;
 
-        int startX = this.x + BOSS_WIDTH / 2;
-        int startY = this.y + BOSS_HEIGHT / 2;
+        int offsetX = -50;
+        int offsetY = -90;
+        int startX = this.x + BOSS_WIDTH / 2 + offsetX;
+        int startY = this.y + BOSS_HEIGHT / 2 + offsetY;
 
         double angle = Math.atan2(targetY - startY, targetX - startX);
         angle += Math.toRadians(angleVariationDegrees);
@@ -268,10 +285,13 @@ public class Boss {
         Player targetPlayer = getTargetPlayer();
         if (targetPlayer == null) return;
 
-        int startX = this.x + BOSS_WIDTH / 2;
-        int startY = this.y + BOSS_HEIGHT / 2;
+        int offsetX = -50;
+        int offsetY = -90;
 
-        double baseAngle = Math.atan2(targetPlayer.getY() + targetPlayer.getCurrentHeight() / 2 - startY, 
+        int startX = this.x + BOSS_WIDTH / 2 + offsetX;
+        int startY = this.y + BOSS_HEIGHT / 2 + offsetY;
+
+        double baseAngle = Math.atan2(targetPlayer.getY() + targetPlayer.getCurrentHeight() / 2 - startY,
                                       targetPlayer.getX() + 40 - startX);
 
         double angleOffset = 0;
@@ -290,7 +310,7 @@ public class Boss {
 
         if (random.nextBoolean()) {
             double homingFactor = 0.5;
-            double angleToPlayer = Math.atan2(targetPlayer.getY() + targetPlayer.getCurrentHeight() / 2 - startY, 
+            double angleToPlayer = Math.atan2(targetPlayer.getY() + targetPlayer.getCurrentHeight() / 2 - startY,
                                               targetPlayer.getX() + 40 - startX);
             baseAngle = baseAngle * (1 - homingFactor) + angleToPlayer * homingFactor;
         }

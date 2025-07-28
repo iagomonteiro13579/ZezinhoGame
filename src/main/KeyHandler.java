@@ -2,7 +2,6 @@ package main;
 
 import java.awt.event.*; // Para KeyEvent, KeyListener
 import java.util.HashSet; // Para HashSet
-import main.GamePanel; // Importa a classe GamePanel
 
 public class KeyHandler implements KeyListener {
     private HashSet<Integer> keys = new HashSet<>();
@@ -14,6 +13,12 @@ public class KeyHandler implements KeyListener {
     @Override
     public void keyPressed(KeyEvent e) {
         int key = e.getKeyCode();
+
+        // Se o jogo estiver em Game Over, reinicia ao pressionar qualquer tecla
+        if (GamePanel.getInstance().isGameOver()) {
+            GamePanel.getInstance().restartGame();
+            return;
+        }
 
         // Menu
         if (GamePanel.gameState == GamePanel.GameState.MENU) {
@@ -31,7 +36,7 @@ public class KeyHandler implements KeyListener {
                     GamePanel.toggleMenu();
                     break;
             }
-            return; 
+            return;
         }
 
         // Jogo

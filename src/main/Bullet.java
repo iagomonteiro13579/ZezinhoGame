@@ -25,7 +25,7 @@ public class Bullet {
         this.damage = damage;
     }
 
-    // ✅ Novo construtor usado pelo Boss (usando Point para evitar conflito de assinaturas)
+    // Construtor usado pelo Boss (usando Point para evitar conflito de assinaturas)
     public Bullet(int x, int y, int width, int height, Point velocity, int damage) {
         this.x = x;
         this.y = y;
@@ -39,6 +39,7 @@ public class Bullet {
     }
 
     public void update() {
+        // Movimento da bala
         if (direction != 0) {
             x += speed * direction;
         } else {
@@ -46,8 +47,32 @@ public class Bullet {
             y += dy;
         }
 
+        // Saiu da tela?
         if (x < -width || x > GamePanel.WIDTH || y < -height || y > GamePanel.HEIGHT) {
             visible = false;
+            return;
+        }
+
+        // Colisão com boss (bala do player)
+        if (direction != 0 && GamePanel.boss != null && getBounds().intersects(GamePanel.boss.getBounds())) {
+            GamePanel.boss.takeDamage(damage);
+            visible = false;
+        }
+
+        // Colisão com Player 1 (bala do boss)
+        if (direction == 0 && GamePanel.player1 != null && getBounds().intersects(GamePanel.player1.getBounds())) {
+            if (!GamePanel.player1.isInvulnerable()) {
+                GamePanel.player1.takeDamage(damage);
+                // NÃO remover bala para atravessar o player
+            }
+        }
+
+        // Colisão com Player 2 (bala do boss)
+        if (direction == 0 && GamePanel.player2 != null && getBounds().intersects(GamePanel.player2.getBounds())) {
+            if (!GamePanel.player2.isInvulnerable()) {
+                GamePanel.player2.takeDamage(damage);
+                // NÃO remover bala para atravessar o player
+            }
         }
     }
 

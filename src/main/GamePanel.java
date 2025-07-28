@@ -19,11 +19,14 @@ public class GamePanel extends JPanel implements Runnable {
     private Thread thread;
     private boolean running;
     private boolean fullscreen = false;
+    private boolean gameOver = false;
 
     public static GameState gameState = GameState.RUNNING;
 
-    private Player player1, player2;
-    private Boss boss;
+    public static Player player1;
+    public static Player player2;
+    public static Boss boss;
+
     private KeyHandler keyHandler;
 
     private BufferedImage backgroundImage;
@@ -114,7 +117,8 @@ public class GamePanel extends JPanel implements Runnable {
         thread.start();
     }
 
-    @Override public void run() {
+    @Override
+    public void run() {
         double drawInterval = 1e9 / 60, delta = 0;
         long lastTime = System.nanoTime(), currentTime;
         while (running) {
@@ -137,13 +141,52 @@ public class GamePanel extends JPanel implements Runnable {
         player1.checkBullets(boss);
         player2.checkBullets(boss);
 
+         if (boss != null) {
+        player1.checkBossCollision(boss);
+        player2.checkBossCollision(boss);
+    }
+        // Verifica se ambos jogadores morreram
+        if (!player1.isAlive() && !player2.isAlive()) {
+            triggerGameOver();
+        }
     }
 
-    @Override protected void paintComponent(Graphics g) {
+    public void restartGame() {
+        gameOver = false;
+        gameState = GameState.RUNNING;
+        setupGameObjects();
+    }
+
+    private void triggerGameOver() {
+        gameOver = true;
+    }
+
+    public boolean isGameOver() {
+        return gameOver;
+    }
+
+    @Override
+    protected void paintComponent(Graphics g) {
         super.paintComponent(g);
         Graphics2D g2d = (Graphics2D) g;
 
-        if (backgroundImage != null) g2d.drawImage(backgroundImage, 0, 0, WIDTH, HEIGHT, null);
+        if (gameOver) {
+            // Tela preta
+            g2d.setColor(Color.BLACK);
+            g2d.fillRect(0, 0, WIDTH, HEIGHT);
+
+            // Texto "GAME OVER"
+            g2d.setFont(new Font("Arial", Font.BOLD, 64));
+            g2d.setColor(Color.WHITE);
+            String text = "GAME OVER";
+            int textWidth = g2d.getFontMetrics().stringWidth(text);
+            int textHeight = g2d.getFontMetrics().getAscent();
+            g2d.drawString(text, (WIDTH - textWidth) / 2, (HEIGHT + textHeight) / 2);
+            return;
+        }
+
+        if (backgroundImage != null)
+            g2d.drawImage(backgroundImage, 0, 0, WIDTH, HEIGHT, null);
         else {
             g2d.setColor(getBackground());
             g2d.fillRect(0, 0, WIDTH, HEIGHT);
@@ -309,11 +352,17 @@ public class GamePanel extends JPanel implements Runnable {
             setupGameObjects();
         }
     }
-    public Player getPlayer1() {
+
+    public static Player getPlayer1() {
         return player1;
     }
 
-    public Player getPlayer2() {
+    public static Player getPlayer2() {
         return player2;
     }
+
+    public static Boss getBoss() {
+        return boss;
+    }
+
 }
